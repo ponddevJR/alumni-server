@@ -1,0 +1,16 @@
+-- AlterTable
+ALTER TABLE "work_expreriences" ADD COLUMN     "continued_study" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "edu_dep" TEXT,
+ADD COLUMN     "edu_faculty" TEXT,
+ADD COLUMN     "edu_level" TEXT,
+ADD COLUMN     "edu_performance" TEXT,
+ADD COLUMN     "edu_university" TEXT,
+ADD COLUMN     "salary" TEXT,
+ADD COLUMN     "year_end" TEXT,
+ADD COLUMN     "year_start" TEXT,
+ALTER COLUMN "job_position" DROP NOT NULL,
+ALTER COLUMN "company_name" DROP NOT NULL,
+ALTER COLUMN "start_date" DROP NOT NULL,
+ALTER COLUMN "job_detail" DROP NOT NULL,
+ALTER COLUMN "job_skills" DROP NOT NULL,
+ALTER COLUMN "job_responsibility" DROP NOT NULL;

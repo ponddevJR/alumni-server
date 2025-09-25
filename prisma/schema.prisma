@@ -1,0 +1,154 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model alumni {
+  alumni_id      String  @id @unique
+  prefix         String
+  fname          String
+  lname          String
+  profile        String?
+  passwordHash   String?
+  allowedAccount Boolean @default(false)
+  year_start     Int?
+  year_end       Int?
+
+  phone1   String?
+  phone2   String?
+  email1   String?
+  email2   String?
+  facebook String?
+
+  address  String?
+  tambon   String?
+  amphure  String?
+  province String?
+  zipcode  String?
+
+  facultyId    Int?
+  departmentId Int?
+  edu_levelId  Int?
+
+  work_expreriences work_expreriences[]
+  user_privacy      user_privacy?
+
+  createtAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model professor {
+  professor_id        String  @id @unique
+  prefix              String
+  fname               String
+  lname               String
+  profile             String?
+  passwordHash        String?
+  academic_rank       String?
+  univercity_position String?
+
+  phone1   String?
+  phone2   String?
+  email1   String?
+  email2   String?
+  facebook String?
+
+  address  String?
+  tambon   String?
+  amphure  String?
+  province String?
+  zipcode  String?
+
+  facultyId    Int?
+  departmentId Int?
+
+  user_privacy user_privacy?
+
+  createtAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model work_expreriences {
+  id                 Int      @id @default(autoincrement())
+  isOnTheLine        Boolean?
+  job_position       String?
+  company_name       String?
+  company_place      String
+  start_date         String?
+  end_date           String?
+  job_detail         String?
+  job_responsibility String?
+  job_skills         String?
+  salary             Float?
+  isCurrent          Boolean  @default(false)
+  isInThai           Boolean @default(true)
+  remark             String?
+
+  edu_level       String?
+  continued_study Boolean @default(false)
+  edu_faculty     String?
+  edu_dep         String?
+  edu_university  String?
+  year_start      String?
+  year_end        String?
+  edu_performance String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  alumniId String?
+  alumni   alumni? @relation(fields: [alumniId], references: [alumni_id])
+}
+
+model user_privacy {
+  id Int @id @default(autoincrement())
+
+  seeEmail           Boolean  @default(false)
+  seePhone           Boolean  @default(false)
+  seeFacebook        Boolean  @default(false)
+  seeAddress         Boolean  @default(false)
+  seeWorkExprerience Boolean? @default(false)
+  seeProfile         Boolean  @default(false)
+
+  allowedAlumniSendEmail    Boolean  @default(false)
+  allowedProfessorSendEmail Boolean? @default(true)
+
+  alumniId    String?    @unique
+  alumni      alumni?    @relation(fields: [alumniId], references: [alumni_id])
+  professorId String?    @unique
+  professor   professor? @relation(fields: [professorId], references: [professor_id])
+
+  createtAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model news_donatios {
+  id            Int     @id @default(autoincrement())
+  title         String
+  short_detail  String
+  thumnail      String
+  detail        String
+  category      String
+  target_money  Int?
+  current_money Int?
+  donate_end    String?
+  isPublish     Boolean
+  date          String
+  month         String
+  year          String
+  view          Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}

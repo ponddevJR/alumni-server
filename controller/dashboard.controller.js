@@ -1,0 +1,1999 @@
+import { PrismaClient } from "../src/generated/prisma";
+
+const prisma = new PrismaClient();
+
+export const dashboardController = {
+  getAll_AVG: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      if (roleId < 2) {
+        set.status = 400;
+        return;
+      }
+
+      const { facultyId, departmentId } = await prisma.professor.findUnique({
+        where: { professor_id: id },
+        select: { facultyId: true, departmentId: true },
+      });
+
+      let filterCondition = {};
+      if (roleId < 3) {
+        filterCondition = { departmentId };
+      } else if (roleId === 3) {
+        filterCondition = { facultyId };
+      } // roleId > 3 จะได้ filterCondition = {}
+      if (query?.facultyId) {
+        filterCondition = { facultyId: Number(query.facultyId) };
+      }
+      if (query?.departmentId) {
+        filterCondition = { departmentId: Number(query.departmentId) };
+      }
+      if (query?.selectYearStart) {
+        filterCondition = {
+          ...filterCondition,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filterCondition = {
+          ...filterCondition,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+
+      const [
+        allAlumni,
+        alumniWorking,
+        salaryAvg,
+        alumniStudy,
+        alumniStudyMax,
+        allProvince,
+        populationJob,
+        workPlaceLive,
+        mostSalary,
+        currentStudy,
+        countryWork,
+        studyOtherCountry,
+      ] = await Promise.all([
+        prisma.alumni.count({ where: filterCondition }),
+
+        prisma.alumni.count({
+          where: {
+            ...filterCondition,
+            work_expreriences: {
+              some: { isCurrent: true, continued_study: false },
+            },
+          },
+        }),
+
+        prisma.work_expreriences.aggregate({
+          _avg: { salary: true },
+          where: { alumni: filterCondition },
+        }),
+
+        prisma.alumni.count({
+          where: {
+            ...filterCondition,
+            work_expreriences: {
+              some: { continued_study: true, edu_level: "ปริญญาโท" },
+            },
+          },
+        }),
+
+        prisma.alumni.count({
+          where: {
+            ...filterCondition,
+            work_expreriences: {
+              some: { continued_study: true, edu_level: "ปริญญาเอก" },
+            },
+          },
+        }),
+
+        prisma.alumni.groupBy({
+          by: ["province"],
+          where: filterCondition,
+          _count: { province: true },
+          orderBy: { _count: { province: "desc" } },
+          take: 1,
+        }),
+
+        prisma.work_expreriences.groupBy({
+          by: ["job_position"],
+          where: {
+            alumni: filterCondition,
+            OR: [
+              {
+                job_position: {
+                  not: null,
+                  notIn: [""],
+                },
+              },
+            ],
+          },
+          _count: { alumniId: true },
+          orderBy: { _count: { alumniId: "desc" } },
+          take: 1,
+        }),
+
+        prisma.work_expreriences.groupBy({
+          by: ["company_place"],
+          where: {
+            alumni: filterCondition,
+            continued_study: false,
+            isInThai: true,
+          },
+          _count: {
+            alumniId: true,
+          },
+          orderBy: {
+            _count: {
+              alumniId: "desc",
+            },
+          },
+          take: 1,
+        }),
+
+        prisma.work_expreriences.aggregate({
+          _max: {
+            salary: true,
+          },
+          where: {
+            alumni: filterCondition,
+            isCurrent: true,
+          },
+        }),
+
+        prisma.alumni.count({
+          where: {
+            ...filterCondition,
+            work_expreriences: {
+              some: {
+                continued_study: true,
+                isCurrent: true,
+              },
+            },
+          },
+        }),
+
+        prisma.alumni.count({
+          where: {
+            ...filterCondition,
+            work_expreriences: {
+              some: {
+                isInThai: false,
+                continued_study: false,
+              },
+            },
+          },
+        }),
+
+        prisma.alumni.count({
+          where: {
+            ...filterCondition,
+            work_expreriences: {
+              some: {
+                isInThai: false,
+                continued_study: true,
+              },
+            },
+          },
+        }),
+      ]);
+      set.status = 200;
+      return {
+        allAlumni,
+        alumniStudy,
+        salaryAvg: salaryAvg?._avg.salary ?? 0,
+        alumniWorking,
+        mostLiveProvince: allProvince[0]?.province ?? null,
+        countMostLive: allProvince[0]?._count.province ?? 0,
+        mostPopulationJob: populationJob[0]?.job_position ?? null,
+        countPoplationJob: populationJob[0]?._count.alumniId ?? 0,
+        workPlaceLive: workPlaceLive[0],
+        mostSalary: mostSalary._max.salary,
+        alumniStudyMax,
+        currentStudy,
+        studyOtherCountry,
+        countryWork,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  chart_bar_data: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      if (!id || id < 2) return (set.status = 400);
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+        },
+      });
+
+      const { facultyId } = user;
+
+      let whereQuery =
+        roleId > 3
+          ? null
+          : {
+              facultyId,
+            };
+      if (query?.facultyId) {
+        whereQuery = { facultyId: Number(query?.facultyId) };
+      }
+      if (query?.selectYearStart) {
+        whereQuery = {
+          ...whereQuery,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        whereQuery = {
+          ...whereQuery,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      const [working, unemployed] = await Promise.all([
+        prisma.alumni.groupBy({
+          by: [roleId <= 3 || query?.facultyId ? "departmentId" : "facultyId"],
+          _count: { alumni_id: true },
+          where: {
+            ...whereQuery,
+            work_expreriences: {
+              some: { isCurrent: true },
+            },
+          },
+        }),
+        prisma.alumni.groupBy({
+          by: [roleId <= 3 || query?.facultyId ? "departmentId" : "facultyId"],
+          _count: {
+            alumni_id: true,
+          },
+          where: {
+            ...whereQuery,
+            work_expreriences: {
+              none: { isCurrent: true },
+            },
+          },
+        }),
+      ]);
+
+      const result = working.map((w) => {
+        const u = unemployed.find((x) =>
+          roleId < 3 || query?.facultyId
+            ? x.departmentId === w.departmentId
+            : x.facultyId === w.facultyId
+        ) || {
+          _count: { alumni_id: 0 },
+        };
+        return {
+          id: roleId < 3 || query?.facultyId ? w.departmentId : w?.facultyId,
+          working: w._count.alumni_id,
+          unemployed: u._count.alumni_id,
+        };
+      });
+
+      unemployed.forEach((u) => {
+        if (!result.find((r) => r.id === u.facultyId)) {
+          result.push({
+            id: roleId < 3 || query?.facultyId ? u.departmentId : u.facultyId,
+            working: 0,
+            unemployed: u._count.alumni_id,
+          });
+        }
+      });
+
+      set.status = 200;
+      return result;
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+ 
+  population_job: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      const { departmentId, facultyId } = user;
+      let queryStr =
+        roleId > 3
+          ? null
+          : roleId < 3
+          ? {
+              departmentId,
+            }
+          : {
+              facultyId,
+            };
+      if (query?.facultyId) {
+        queryStr = { facultyId: Number(query?.facultyId) };
+      }
+      if (query?.departmentId) {
+        queryStr = { departmentId: Number(query?.departmentId) };
+      }
+      if (query?.selectYearStart) {
+        queryStr = {
+          ...queryStr,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        queryStr = {
+          ...queryStr,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      const result = await prisma.work_expreriences.groupBy({
+        by: ["job_position"],
+        where: {
+          alumni: {
+            ...queryStr,
+          },
+          OR: [
+            {
+              job_position: {
+                not: null,
+                notIn: [""],
+              },
+            },
+          ],
+        },
+        _count: {
+          alumniId: true,
+        },
+        orderBy: {
+          _count: {
+            alumniId: "desc",
+          },
+        },
+        take: 10,
+      });
+
+      set.status = 200;
+      return result;
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  most_live_province: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      const { departmentId, facultyId } = user;
+      let queryStr =
+        roleId > 3
+          ? null
+          : roleId < 3
+          ? {
+              departmentId,
+            }
+          : {
+              facultyId,
+            };
+
+      if (query?.facultyId) {
+        queryStr = { facultyId: Number(query?.facultyId) };
+      }
+      if (query?.departmentId) {
+        queryStr = { departmentId: Number(query?.departmentId) };
+      }
+      if (query?.selectYearStart) {
+        queryStr = {
+          ...queryStr,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        queryStr = {
+          ...queryStr,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+
+      const [result, total] = await Promise.all([
+        prisma.work_expreriences.groupBy({
+          by: ["company_place"],
+          where: {
+            alumni: { ...queryStr },
+            continued_study: false,
+            isInThai: true,
+          },
+          _count: {
+            alumniId: true,
+          },
+          orderBy: {
+            _count: {
+              alumniId: "desc",
+            },
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            ...queryStr,
+            work_expreriences: {
+              some: {
+                continued_study: false,
+                isInThai: true,
+              },
+            },
+          },
+        }),
+      ]);
+      set.status = 200;
+      return { result, total };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  workrate_percent: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      const { departmentId, facultyId } = user;
+      let queryStr =
+        roleId > 3
+          ? null
+          : roleId < 3
+          ? {
+              departmentId,
+            }
+          : {
+              facultyId,
+            };
+      if (query?.facultyId) {
+        queryStr = { facultyId: Number(query?.facultyId) };
+      }
+      if (query?.selectYearStart) {
+        queryStr = {
+          ...queryStr,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        queryStr = {
+          ...queryStr,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      // groupBy ตามคณะ
+      const result = await prisma.alumni.groupBy({
+        by: [roleId < 3 || query?.facultyId ? "departmentId" : "facultyId"],
+        _count: { alumni_id: true },
+        where: {
+          ...queryStr,
+          work_expreriences: {
+            some: {
+              continued_study: false,
+            },
+          },
+        },
+        orderBy: {
+          _count: { alumni_id: "desc" },
+        },
+      });
+
+      // นับศิษย์เก่าทั้งหมดแยกตามคณะ เอาเฉพาะศิษย์เก่าที่กรอกข้อมูลการทำงาน
+      const totalByFaculty = await prisma.alumni.groupBy({
+        by: [roleId < 3 || query?.facultyId ? "departmentId" : "facultyId"],
+        _count: { alumni_id: true },
+        where: {
+          work_expreriences: {
+            some: {},
+          },
+        },
+      });
+
+      // map มาคำนวณเปอร์เซ็นต์
+      const percentByFaculty = result.map((r) => {
+        const total =
+          totalByFaculty.find((t) => t.facultyId === r.facultyId)?._count
+            .alumni_id || 0;
+        return {
+          id: roleId < 3 || query?.facultyId ? r?.departmentId : r.facultyId,
+          percent:
+            total > 0
+              ? ((r._count.alumni_id / total) * 100).toFixed(2)
+              : "0.00",
+        };
+      });
+
+      set.status = 200;
+      return percentByFaculty; // [{ facultyId, employed, total, percent }, ...]
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  no_work_data: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      const { departmentId, facultyId } = user;
+      let queryStr =
+        roleId > 3
+          ? null
+          : roleId < 3
+          ? {
+              departmentId,
+            }
+          : {
+              facultyId,
+            };
+
+      if (query?.facultyId) {
+        queryStr = { facultyId: Number(query?.facultyId) };
+      }
+      if (query?.departmentId) {
+        queryStr = { departmentId: Number(query?.departmentId) };
+      }
+      if (query?.selectYearStart) {
+        queryStr = {
+          ...queryStr,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        queryStr = {
+          ...queryStr,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+
+      const result = await prisma.alumni.groupBy({
+        by: [roleId < 3 || query?.facultyId ? "departmentId" : "facultyId"],
+        _count: {
+          alumni_id: true,
+        },
+        where: {
+          ...queryStr,
+          work_expreriences: {
+            none: {},
+          },
+        },
+        orderBy: {
+          _count: {
+            alumni_id: "desc",
+          },
+        },
+      });
+
+      const alumniNoWork = await prisma.alumni.findMany({
+        take: 10,
+        where: {
+          ...queryStr,
+          work_expreriences: {
+            none: {},
+          },
+        },
+        select: {
+          profile: true,
+          prefix: true,
+          fname: true,
+          lname: true,
+          alumni_id: true,
+        },
+      });
+
+      set.status = 200;
+      return { result, alumniNoWork };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  list_work_unemployed: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      const {
+        page,
+        facultyId,
+        departmentId,
+        take,
+        search,
+        sort,
+        current,
+        selectYearStart,
+        selectYearEnd,
+      } = query;
+      const skip = take * (page - 1);
+      const yearStartQ = selectYearStart
+        ? { year_start: Number(selectYearStart) }
+        : {};
+      const yearEndQ = selectYearEnd ? { year_end: Number(selectYearEnd) } : {};
+
+      const { facultyId: userFac, departmentId: userDep } =
+        await prisma.professor.findUnique({
+          where: {
+            professor_id: id,
+          },
+          select: {
+            facultyId: true,
+            departmentId: true,
+          },
+        });
+
+      let filter = {};
+      if (roleId === 3) {
+        filter = { facultyId: userFac };
+      } else if (roleId < 3) {
+        filter = { departmentId: userDep };
+      }
+      if (facultyId) {
+        filter = { facultyId: Number(facultyId) };
+      }
+      if (departmentId) {
+        filter = { departmentId: Number(departmentId) };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              year_start: {
+                equals: Number(search),
+              },
+            },
+          ],
+        };
+      }
+      let work = {};
+      if (current) {
+        work = JSON.parse(current);
+        filter = {
+          ...filter,
+          work_expreriences: {
+            ...work,
+          },
+        };
+      }
+
+      const [result, total] = await Promise.all([
+        prisma.alumni.findMany({
+          skip,
+          take: Number(take),
+          where: {
+            ...filter,
+            ...yearStartQ,
+            ...yearEndQ,
+          },
+          select: {
+            alumni_id: true,
+            year_start: true,
+            prefix: true,
+            fname: true,
+            lname: true,
+            facultyId: true,
+            departmentId: true,
+            year_end: true,
+            work_expreriences: {
+              take: 1,
+              select: {
+                isCurrent: true,
+                continued_study: true,
+              },
+            },
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            ...filter,
+            ...yearStartQ,
+            ...yearEndQ,
+          },
+        }),
+      ]);
+
+      set.status = 200;
+      return {
+        result,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  list_alumni_salary: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      const {
+        page,
+        facultyId,
+        departmentId,
+        take,
+        search,
+        sort,
+        extraFilter,
+        selectYearStart,
+        selectYearEnd,
+      } = query;
+      const skip = take * (page - 1);
+
+      const yearStartQ = selectYearStart
+        ? { year_start: Number(selectYearStart) }
+        : {};
+      const yearEndQ = selectYearEnd ? { year_end: Number(selectYearEnd) } : {};
+      const { facultyId: userFac, departmentId: userDep } =
+        await prisma.professor.findUnique({
+          where: {
+            professor_id: id,
+          },
+          select: {
+            facultyId: true,
+            departmentId: true,
+          },
+        });
+
+      let filter = {};
+      if (roleId === 3) {
+        filter = { facultyId: userFac };
+      } else if (roleId < 3) {
+        filter = { departmentId: userDep };
+      }
+      if (facultyId) {
+        filter = { facultyId: Number(facultyId) };
+      }
+      if (departmentId) {
+        filter = { departmentId: Number(departmentId) };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              year_start: {
+                equals: Number(search),
+              },
+            },
+          ],
+        };
+      }
+      if (extraFilter) {
+        filter = {
+          ...filter,
+          ...JSON.parse(extraFilter),
+        };
+      }
+      const [data, total, alumniAvg, maxSalary, currentSalary] =
+        await Promise.all([
+          prisma.alumni.findMany({
+            skip,
+            take: Number(take),
+            where: {
+              ...filter,
+              ...yearStartQ,
+              ...yearEndQ,
+            },
+            select: {
+              alumni_id: true,
+              year_start: true,
+              prefix: true,
+              fname: true,
+              lname: true,
+              facultyId: true,
+              departmentId: true,
+              year_end: true,
+            },
+            orderBy: {
+              ...JSON.parse(sort),
+            },
+          }),
+          prisma.alumni.count({
+            where: {
+              ...filter,
+              ...yearStartQ,
+              ...yearEndQ,
+            },
+          }),
+          prisma.work_expreriences.groupBy({
+            by: ["alumniId"],
+            where: {
+              alumni: {
+                ...filter,
+                ...yearStartQ,
+                ...yearEndQ,
+              },
+            },
+            _avg: {
+              salary: true,
+            },
+          }),
+          prisma.work_expreriences.groupBy({
+            by: ["alumniId"],
+            where: {
+              alumni: {
+                ...filter,
+                ...yearStartQ,
+                ...yearEndQ,
+              },
+            },
+            _max: {
+              salary: true,
+            },
+          }),
+          prisma.work_expreriences.groupBy({
+            by: ["alumniId"],
+            where: {
+              isCurrent: true,
+              alumni: {
+                ...filter,
+                ...yearStartQ,
+                ...yearEndQ,
+              },
+            },
+            _sum: {
+              salary: true,
+            },
+          }),
+        ]);
+
+      const result = data.map((d) => {
+        return {
+          alumni_id: d.alumni_id,
+          year_start: d.year_start,
+          prefix: d.prefix,
+          fname: d.fname,
+          lname: d.lname,
+          facultyId: d.facultyId,
+          departmentId: d.departmentId,
+          avg_salary: alumniAvg.find((a) => a?.alumniId == d?.alumni_id)?._avg
+            ?.salary,
+          max_salary: maxSalary.find((a) => a?.alumniId == d?.alumni_id)?._max
+            ?.salary,
+          current_salary: currentSalary.find((c) => c?.alumniId == d?.alumni_id)
+            ?._sum?.salary,
+        };
+      });
+      set.status = 200;
+      return {
+        result,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  list_work: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      const {
+        page,
+        facultyId,
+        departmentId,
+        take,
+        search,
+        sort,
+        extraFilter,
+        selectYearStart,
+        selectYearEnd,
+      } = query;
+      const skip = take * (page - 1);
+      const yearStartQ = selectYearStart
+        ? { year_start: Number(selectYearStart) }
+        : {};
+      const yearEndQ = selectYearEnd ? { year_end: Number(selectYearEnd) } : {};
+
+      const { facultyId: userFac, departmentId: userDep } =
+        await prisma.professor.findUnique({
+          where: {
+            professor_id: id,
+          },
+          select: {
+            facultyId: true,
+            departmentId: true,
+          },
+        });
+
+      let filter = {};
+      if (roleId === 3) {
+        filter = { facultyId: userFac };
+      } else if (roleId < 3) {
+        filter = { departmentId: userDep };
+      }
+      if (facultyId) {
+        filter = { facultyId: Number(facultyId) };
+      }
+      if (departmentId) {
+        filter = { departmentId: Number(departmentId) };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              year_start: {
+                equals: Number(search),
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  company_name: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  company_place: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  job_position: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  edu_university: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          ],
+        };
+      }
+      if (extraFilter) {
+        filter = {
+          ...filter,
+          work_expreriences: {
+            ...JSON.parse(extraFilter),
+          },
+        };
+      }
+
+      const [data, total] = await Promise.all([
+        prisma.alumni.findMany({
+          skip,
+          take: Number(take),
+          where: {
+            ...filter,
+            ...yearStartQ,
+            ...yearEndQ,
+          },
+          select: {
+            alumni_id: true,
+            year_start: true,
+            prefix: true,
+            fname: true,
+            lname: true,
+            facultyId: true,
+            year_end: true,
+            departmentId: true,
+            work_expreriences: {
+              take: 1,
+              where: {
+                isCurrent: true,
+              },
+              select: {
+                continued_study: true,
+                job_position: true,
+                company_place: true,
+                company_name: true,
+                edu_university: true,
+              },
+              orderBy: {
+                end_date: "desc",
+              },
+            },
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            ...filter,
+            ...yearStartQ,
+            ...yearEndQ,
+          },
+        }),
+      ]);
+
+      set.status = 200;
+      return {
+        result: data,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  list_no_work_data: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      const {
+        page,
+        facultyId,
+        departmentId,
+        take,
+        search,
+        sort,
+        selectYearStart,
+        selectYearEnd,
+      } = query;
+      const skip = take * (page - 1);
+      const yearStartQ = selectYearStart
+        ? { year_start: Number(selectYearStart) }
+        : {};
+      const yearEndQ = selectYearEnd ? { year_end: Number(selectYearEnd) } : {};
+
+      const { facultyId: userFac, departmentId: userDep } =
+        await prisma.professor.findUnique({
+          where: {
+            professor_id: id,
+          },
+          select: {
+            facultyId: true,
+            departmentId: true,
+          },
+        });
+
+      let filter = {};
+      if (roleId === 3) {
+        filter = { facultyId: userFac };
+      } else if (roleId < 3) {
+        filter = { departmentId: userDep };
+      }
+      if (facultyId) {
+        filter = { facultyId: Number(facultyId) };
+      }
+      if (departmentId) {
+        filter = { departmentId: Number(departmentId) };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              year_start: {
+                equals: Number(search),
+              },
+            },
+          ],
+        };
+      }
+
+      const [result, total] = await Promise.all([
+        prisma.alumni.findMany({
+          take: Number(take),
+          skip,
+          where: {
+            work_expreriences: {
+              none: {},
+            },
+            ...filter,
+            ...yearStartQ,
+            ...yearEndQ,
+          },
+          select: {
+            alumni_id: true,
+            year_start: true,
+            prefix: true,
+            fname: true,
+            lname: true,
+            facultyId: true,
+            departmentId: true,
+            year_end: true,
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            work_expreriences: {
+              none: {},
+            },
+            ...filter,
+            ...yearStartQ,
+            ...yearEndQ,
+          },
+        }),
+      ]);
+
+      set.status = 200;
+      return {
+        result,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  work_place_rate: async ({ query, set, store }) => {
+    try {
+      const { roleId, id } = store.user;
+      const { facultyId, departmentId } = query;
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      let filter = {};
+      if (roleId == 3) {
+        filter = {
+          facultyId: user.facultyId,
+        };
+      } else if (roleId < 3) {
+        filter = {
+          departmentId: user.departmentId,
+        };
+      }
+
+      if (facultyId) {
+        filter = {
+          facultyId: Number(facultyId),
+        };
+      }
+      if (departmentId) {
+        filter = {
+          departmentId: Number(departmentId),
+        };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+
+      const [inThai, otherCountry, otherCountryList] = await Promise.all([
+        prisma.alumni.count({
+          where: {
+            ...filter,
+            work_expreriences: {
+              some: {
+                continued_study: false,
+                isInThai: true,
+              },
+            },
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            ...filter,
+            work_expreriences: {
+              some: {
+                continued_study: false,
+                isInThai: false,
+              },
+            },
+          },
+        }),
+        prisma.work_expreriences.groupBy({
+          by: ["company_place"],
+          where: {
+            alumni: {
+              ...filter,
+            },
+            continued_study: false,
+            isInThai: false,
+          },
+          _count: {
+            alumniId: true,
+          },
+          orderBy: {
+            _count: {
+              alumniId: "desc",
+            },
+          },
+        }),
+      ]);
+
+      set.status = 200;
+      return {
+        result: [
+          { name: "ทำงานในประเทศไทย", value: inThai },
+          { name: "ทำงานต่างประเทศ", value: otherCountry },
+        ],
+        countryList: otherCountryList,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  master_degree_list: async ({ set, store, query }) => {
+    try {
+      const { roleId, id } = store.user;
+      const { facultyId, departmentId, search, page, take, sort, type } = query;
+      const skip = Number(take) * (page - 1);
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      let filter = {};
+      if (roleId == 3) {
+        filter = {
+          facultyId: user.facultyId,
+        };
+      } else if (roleId < 3) {
+        filter = {
+          departmentId: user.departmentId,
+        };
+      }
+
+      if (facultyId) {
+        filter = {
+          facultyId: Number(facultyId),
+        };
+      }
+      if (departmentId) {
+        filter = {
+          departmentId: Number(departmentId),
+        };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  edu_university: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  edu_dep: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  company_place: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          ],
+        };
+      }
+
+      const [result, total] = await Promise.all([
+        prisma.alumni.findMany({
+          take: Number(take),
+          skip,
+          where: {
+            ...filter,
+            work_expreriences: {
+              some: {
+                continued_study: true,
+                edu_level: type < 2 ? "ปริญญาโท" : "ปริญญาเอก",
+              },
+            },
+          },
+          select: {
+            alumni_id: true,
+            prefix: true,
+            fname: true,
+            lname: true,
+            year_start: true,
+            year_end: true,
+            facultyId: true,
+            departmentId: true,
+            work_expreriences: {
+              take: 1,
+              where: {
+                continued_study: true,
+                edu_level: type < 2 ? "ปริญญาโท" : "ปริญญาเอก",
+              },
+              select: {
+                edu_dep: true,
+                edu_university: true,
+              },
+            },
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            ...filter,
+            work_expreriences: {
+              some: {
+                continued_study: true,
+                edu_level: type < 2 ? "ปริญญาโท" : "ปริญญาเอก",
+              },
+            },
+          },
+        }),
+      ]);
+
+      set.status = 200;
+
+      return {
+        result,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  work_other_country_list: async ({ query, set, store }) => {
+    try {
+      const { roleId, id } = store.user;
+      const { facultyId, departmentId, search, page, take, sort, type } = query;
+      const skip = Number(take) * (page - 1);
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      let filter = {};
+      if (roleId == 3) {
+        filter = {
+          facultyId: user.facultyId,
+        };
+      } else if (roleId < 3) {
+        filter = {
+          departmentId: user.departmentId,
+        };
+      }
+
+      if (facultyId) {
+        filter = {
+          facultyId: Number(facultyId),
+        };
+      }
+      if (departmentId) {
+        filter = {
+          departmentId: Number(departmentId),
+        };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  job_position: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  company_place: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          ],
+        };
+      }
+
+      const [result, total] = await Promise.all([
+        prisma.alumni.findMany({
+          take: Number(take),
+          skip,
+          where: {
+            ...filter,
+            work_expreriences: {
+              some: {
+                continued_study: false,
+                isInThai: false,
+              },
+            },
+          },
+          select: {
+            alumni_id: true,
+            prefix: true,
+            fname: true,
+            lname: true,
+            year_start: true,
+            year_end: true,
+            facultyId: true,
+            departmentId: true,
+            work_expreriences: {
+              take: 1,
+              where: {
+                continued_study: false,
+                isInThai: false,
+              },
+              select: {
+                job_position: true,
+                company_name: true,
+                company_place: true,
+              },
+            },
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+
+        prisma.alumni.count({
+          where: {
+            ...filter,
+            work_expreriences: {
+              some: {
+                continued_study: false,
+                isInThai: false,
+              },
+            },
+          },
+        }),
+      ]);
+
+      set.status = 200;
+
+      return {
+        result,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  most_salary_byname: async ({ set, store, query }) => {
+    try {
+      const { roleId, id } = store?.user;
+      const { facultyId, departmentId } = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+      const { type } = query;
+
+      let filterCondition = {};
+      if (roleId < 3) {
+        filterCondition = { departmentId };
+      } else if (roleId === 3) {
+        filterCondition = { facultyId };
+      } // roleId > 3 จะได้ filterCondition = {}
+      if (query?.facultyId) {
+        filterCondition = { facultyId: Number(query.facultyId) };
+      }
+      if (query?.departmentId) {
+        filterCondition = { departmentId: Number(query.departmentId) };
+      }
+      if (query?.selectYearStart) {
+        filterCondition = {
+          ...filterCondition,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filterCondition = {
+          ...filterCondition,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+
+      let salary = {};
+      if (Number(type) < 2) {
+        salary = await prisma.work_expreriences.aggregate({
+          where: {
+            isCurrent: true,
+          },
+          _max: {
+            salary: true,
+          },
+        });
+      } else {
+        salary = await prisma.work_expreriences.aggregate({
+          where: {
+            isCurrent: true,
+            continued_study: false,
+          },
+          _min: {
+            salary: true,
+          },
+        });
+      }
+
+      const alumni = await prisma.work_expreriences.findFirst({
+        where: {
+          salary: Number(type) < 2 ? salary._max.salary : salary._min.salary,
+        },
+        select: {
+          alumniId: true,
+        },
+      });
+
+      set.status = 200;
+      return alumni.alumniId;
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  study_other_country_list: async ({ set, store, query }) => {
+    try {
+      const { roleId, id } = store.user;
+      const { facultyId, departmentId, search, page, take, sort } = query;
+      const skip = Number(take) * (page - 1);
+
+      const user = await prisma.professor.findUnique({
+        where: {
+          professor_id: id,
+        },
+        select: {
+          facultyId: true,
+          departmentId: true,
+        },
+      });
+
+      let filter = {};
+      if (roleId == 3) {
+        filter = {
+          facultyId: user.facultyId,
+        };
+      } else if (roleId < 3) {
+        filter = {
+          departmentId: user.departmentId,
+        };
+      }
+
+      if (facultyId) {
+        filter = {
+          facultyId: Number(facultyId),
+        };
+      }
+      if (departmentId) {
+        filter = {
+          departmentId: Number(departmentId),
+        };
+      }
+      if (query?.selectYearStart) {
+        filter = {
+          ...filter,
+          year_start: Number(query?.selectYearStart),
+        };
+      }
+      if (query?.selectYearEnd) {
+        filter = {
+          ...filter,
+          year_end: Number(query?.selectYearEnd),
+        };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  edu_university: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+            {
+              work_expreriences: {
+                some: {
+                  company_place: {
+                    contains: search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          ],
+        };
+      }
+      if (query?.current) {
+        filter = {
+          ...filter,
+          work_expreriences: {
+            some: {
+              isInThai: false,
+              continued_study: true,
+              ...JSON.parse(query?.current),
+            },
+          },
+        };
+      }
+
+      const [result, total] = await Promise.all([
+        prisma.alumni.findMany({
+          take: Number(take),
+          skip,
+          where: {
+            work_expreriences: {
+              some: {
+                isInThai: false,
+                continued_study: true,
+              },
+            },
+            ...filter,
+          },
+          select: {
+            alumni_id: true,
+            fname: true,
+            lname: true,
+            prefix: true,
+            facultyId: true,
+            departmentId: true,
+            year_end: true,
+            year_start: true,
+            work_expreriences: {
+              take: 1,
+              where: {
+                continued_study: true,
+                isInThai: false,
+              },
+              select: {
+                year_end: true,
+                year_start: true,
+                edu_university: true,
+                company_place: true,
+              },
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+        prisma.alumni.count({
+          where: {
+            work_expreriences: {
+              some: {
+                isInThai: false,
+                continued_study: true,
+              },
+            },
+            ...filter,
+          },
+        }),
+      ]);
+
+      set.status = 200;
+      return {
+        result,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+        total,
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+};
