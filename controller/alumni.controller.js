@@ -416,6 +416,7 @@ export const alumniController = {
           seeWorkExprerience: true,
           allowedAlumniSendEmail: true,
           allowedProfessorSendEmail: true,
+          seeSalary: true,
         },
       });
 
@@ -428,7 +429,6 @@ export const alumniController = {
     }
   },
   update_privacy: async ({ body, store, set }) => {
-    console.log("🚀 ~ body:", body);
     try {
       const id = store.user.id;
       if (!id) {
@@ -444,6 +444,7 @@ export const alumniController = {
         "seeFacebook",
         "seeAddress",
         "seeWorkExprerience",
+        "seeSalary",
         "allowedAlumniSendEmail",
         "allowedProfessorSendEmail",
       ];
@@ -851,31 +852,11 @@ export const alumniController = {
         role,
       } = query;
 
-      const professor = await prisma.professor.findUnique({
-        where: {
-          professor_id: store?.user?.id,
-        },
-        select: {
-          departmentId: true,
-          facultyId: true,
-        },
-      });
-
       const type = 1;
       const skip = take * (Number(page) - 1);
 
-      const facQuery =
-        Number(role) === 3
-          ? { facultyId: Number(professor.facultyId) }
-          : fac
-          ? { facultyId: Number(fac) }
-          : {};
-      let depIdQuery =
-        Number(role) === 2
-          ? { departmentId: Number(professor.departmentId) }
-          : dep
-          ? { departmentId: Number(dep) }
-          : {};
+      const facQuery = fac ? { facultyId: Number(fac) } : {};
+      let depIdQuery = dep ? { departmentId: Number(dep) } : {};
       const yearStartQ =
         selectYearStart && type < 2
           ? { year_start: Number(selectYearStart) }
@@ -1040,6 +1021,7 @@ export const alumniController = {
                     seePhone: true,
                     seeWorkExprerience: true,
                     seeProfile: true,
+                    seeSalary: true,
                   },
                 },
               },

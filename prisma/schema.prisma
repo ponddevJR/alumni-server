@@ -101,6 +101,7 @@ model user_privacy {
   seeAddress         Boolean  @default(false)
   seeWorkExprerience Boolean? @default(false)
   seeProfile         Boolean  @default(false)
+  seeSalary          Boolean  @default(false)
 
   allowedAlumniSendEmail    Boolean  @default(false)
   allowedProfessorSendEmail Boolean? @default(true)

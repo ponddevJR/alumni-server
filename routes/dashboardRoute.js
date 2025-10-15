@@ -36,9 +36,7 @@ export const dashboardRoute = new Elysia({ prefix: "/dashboard" })
   .get("/list/work-unemployed", dashboardController.list_work_unemployed, {
     beforeHandle: middleware.auth,
   })
-  .get("/list/alumni-salary", dashboardController.list_alumni_salary, {
-    beforeHandle: middleware.auth,
-  })
+
   // work list
   .get("/list/alumni-work", dashboardController.list_work, {
     beforeHandle: middleware.auth,
