@@ -35,7 +35,7 @@ export const alumniRoutes = new Elysia({ prefix: "/alumni" })
     beforeHandle: middleware.auth,
   })
   // get work exprerience
-  .get("/work-list", alumniController.work_list, {
+  .get("/work-list/:alumniId", alumniController.work_list, {
     beforeHandle: middleware.auth,
   })
   // delete work
@@ -60,5 +60,9 @@ export const alumniRoutes = new Elysia({ prefix: "/alumni" })
   })
   // send emai;
   .post("/send-email", alumniController.send_email, {
+    beforeHandle: middleware.auth,
+  })
+  // get contract
+  .get("/contract", alumniController.get_contract, {
     beforeHandle: middleware.auth,
   });

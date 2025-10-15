@@ -42,4 +42,22 @@ export const presidentRoutes = new Elysia({ prefix: "/president" })
   // send email
   .post("/sendemail", presidentController.send_email, {
     beforeHandle: middleware.auth,
+  })
+  // delete contract alumni
+  .delete(
+    "/delete-contract/:alumniId",
+    presidentController.delete_alumni_contract,
+    { beforeHandle: middleware.auth }
+  )
+  // delete work ex
+  .delete(
+    "/delete-work-ex/:alumniId",
+    presidentController.delete_work_exprerience,
+    { beforeHandle: middleware.auth }
+  )
+  .get("/get-user", presidentController.get_users, {
+    beforeHandle: middleware.auth,
+  })
+  .put("/manage-account/:user_id", presidentController.manage_account, {
+    beforeHandle: middleware.auth,
   });

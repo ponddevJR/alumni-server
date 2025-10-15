@@ -22,20 +22,9 @@ model alumni {
   profile        String?
   passwordHash   String?
   allowedAccount Boolean @default(false)
+  canUse         Boolean @default(true)
   year_start     Int?
   year_end       Int?
-
-  phone1   String?
-  phone2   String?
-  email1   String?
-  email2   String?
-  facebook String?
-
-  address  String?
-  tambon   String?
-  amphure  String?
-  province String?
-  zipcode  String?
 
   facultyId    Int?
   departmentId Int?
@@ -44,19 +33,15 @@ model alumni {
   work_expreriences work_expreriences[]
   user_privacy      user_privacy?
 
-  createtAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  createtAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now())
+  alumni_contract alumni_contract[]
 }
 
-model professor {
-  professor_id        String  @id @unique
-  prefix              String
-  fname               String
-  lname               String
-  profile             String?
-  passwordHash        String?
-  academic_rank       String?
-  univercity_position String?
+model alumni_contract {
+  id       Int     @id @default(autoincrement())
+  alumniId String? @unique
+  alumni   alumni? @relation(fields: [alumniId], references: [alumni_id])
 
   phone1   String?
   phone2   String?
@@ -64,19 +49,15 @@ model professor {
   email2   String?
   facebook String?
 
-  address  String?
-  tambon   String?
-  amphure  String?
-  province String?
-  zipcode  String?
-
-  facultyId    Int?
-  departmentId Int?
-
-  user_privacy user_privacy?
-
-  createtAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  address               String?
+  tambon                String?
+  amphure               String?
+  province              String?
+  zipcode               String?
+  createtAt             DateTime   @default(now())
+  updatedAt             DateTime   @default(now())
+  professor             professor? @relation(fields: [professorProfessor_id], references: [professor_id])
+  professorProfessor_id String?
 }
 
 model work_expreriences {
@@ -92,7 +73,7 @@ model work_expreriences {
   job_skills         String?
   salary             Float?
   isCurrent          Boolean  @default(false)
-  isInThai           Boolean @default(true)
+  isInThai           Boolean  @default(true)
   remark             String?
 
   edu_level       String?
@@ -130,6 +111,27 @@ model user_privacy {
   professor   professor? @relation(fields: [professorId], references: [professor_id])
 
   createtAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model professor {
+  professor_id        String  @id @unique
+  prefix              String
+  fname               String
+  lname               String
+  profile             String?
+  passwordHash        String?
+  academic_rank       String?
+  canUse              Boolean @default(true)
+  univercity_position String?
+
+  facultyId    Int?
+  departmentId Int?
+
+  user_privacy    user_privacy?
+  alumni_contract alumni_contract[]
+
+  createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
 

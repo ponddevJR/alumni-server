@@ -26,6 +26,10 @@ export const alumniController = {
         lname: true,
         facultyId: true,
         departmentId: true,
+        profile: true,
+      };
+
+      const selectAlumniContract = {
         phone1: true,
         phone2: true,
         email1: true,
@@ -36,10 +40,10 @@ export const alumniController = {
         amphure: true,
         province: true,
         zipcode: true,
-        profile: true,
       };
 
       let user;
+      let contract;
 
       if (isAlumni) {
         user = await prisma.alumni.findUnique({
@@ -64,10 +68,25 @@ export const alumniController = {
               },
               orderBy: { createdAt: "desc" },
             },
+            alumni_contract: {
+              select: {
+                phone1: true,
+                phone2: true,
+                email1: true,
+                email2: true,
+                facebook: true,
+              },
+            },
+          },
+        });
+        contract = await prisma.alumni_contract.findUnique({
+          where: { alumniId: id },
+          select: {
+            ...selectAlumniContract,
           },
         });
       } else {
-        user = await prisma.professor.findUnique({
+        user = await prisma.professor.findFirst({
           where: { professor_id: id },
           select: {
             ...commonSelect,
@@ -76,14 +95,78 @@ export const alumniController = {
             univercity_position: true,
           },
         });
+        contract = await prisma.alumni_contract.findFirst({
+          where: { professorProfessor_id: id },
+          select: {
+            ...selectAlumniContract,
+          },
+        });
       }
 
+      user = {
+        ...user,
+        ...contract,
+      };
+
       set.status = 200;
+      console.log("🚀 ~ user:", user);
       return { alumni: user };
     } catch (error) {
       console.error(error);
       set.status = 500;
       return { error: "Internal server error" };
+    }
+  },
+  get_contract: async ({ set, store }) => {
+    try {
+      const { id, roleId } = store.user;
+      console.log("🚀 ~ roleId:", roleId);
+      if (!id) return (set.status = 400);
+
+      let contract;
+      if (Number(roleId) < 2) {
+        contract = await prisma.alumni_contract.findUnique({
+          where: {
+            alumniId: id,
+          },
+          select: {
+            phone1: true,
+            phone2: true,
+            email1: true,
+            email2: true,
+            facebook: true,
+            address: true,
+            tambon: true,
+            amphure: true,
+            province: true,
+            zipcode: true,
+          },
+        });
+      } else {
+        contract = await prisma.alumni_contract.findFirst({
+          where: {
+            professorProfessor_id: id,
+          },
+          select: {
+            phone1: true,
+            phone2: true,
+            email1: true,
+            email2: true,
+            facebook: true,
+            address: true,
+            tambon: true,
+            amphure: true,
+            province: true,
+            zipcode: true,
+          },
+        });
+      }
+
+      set.status = 200;
+      return contract;
+    } catch (error) {
+      console.error(error);
+      return (set.status = 500);
     }
   },
   update_contact: async ({ body, store, set }) => {
@@ -92,15 +175,32 @@ export const alumniController = {
       const { phone1, phone2, email1, email2, facebook } = body;
 
       const isAlumni = roleId < 2;
-      const model = isAlumni ? "alumni" : "professor";
-      const idField = isAlumni ? "alumni_id" : "professor_id";
+      const idField = isAlumni ? "alumniId" : "professorProfessor_id";
 
-      const update = await prisma[model].update({
+      const hadContract = await prisma.alumni_contract.findFirst({
         where: { [idField]: id },
-        data: { phone1, phone2, email1, email2, facebook },
       });
+      let update;
+      let create;
+      if (!hadContract) {
+        create = await prisma.alumni_contract.create({
+          data: {
+            [idField]: id,
+            phone1,
+            phone2,
+            email1,
+            email2,
+            facebook,
+          },
+        });
+      } else {
+        update = await prisma.alumni_contract.update({
+          where: { [idField]: id },
+          data: { phone1, phone2, email1, email2, facebook },
+        });
+      }
 
-      if (!update) {
+      if (!update && !create) {
         set.status = 400;
         return;
       }
@@ -246,22 +346,41 @@ export const alumniController = {
       const { address, tambon, amphure, province, zipcode } = body;
 
       // กำหนด model และ idField (แก้เป็น < 2 ถ้า alumni มีทั้ง role 0 และ 1)
-      const isAlumni = Number(roleId) < 1;
-      const model = isAlumni ? "alumni" : "professor";
-      const idField = isAlumni ? "alumni_id" : "professor_id";
-
-      const update = await prisma[model].update({
+      const isAlumni = Number(roleId) < 2;
+      const idField = isAlumni ? "alumniId" : "professorProfessor_id";
+      const hadContract = await prisma.alumni_contract.findUnique({
         where: { [idField]: id },
-        data: {
-          address,
-          tambon,
-          amphure,
-          province,
-          zipcode: String(zipcode),
+        select: {
+          id: true,
         },
       });
+      let update;
+      let create;
+      if (!hadContract.id) {
+        create = await prisma.alumni_contract.create({
+          data: {
+            [idField]: id,
+            address,
+            tambon,
+            amphure,
+            province,
+            zipcode: String(zipcode),
+          },
+        });
+      } else {
+        update = await prisma.alumni_contract.update({
+          where: { [idField]: id },
+          data: {
+            address,
+            tambon,
+            amphure,
+            province,
+            zipcode: String(zipcode),
+          },
+        });
+      }
 
-      if (!update) {
+      if (!update && !create) {
         set.status = 400;
         return { err: "ไม่สามารถอัปเดตข้อมูลที่อยู่ได้" };
       }
@@ -309,6 +428,7 @@ export const alumniController = {
     }
   },
   update_privacy: async ({ body, store, set }) => {
+    console.log("🚀 ~ body:", body);
     try {
       const id = store.user.id;
       if (!id) {
@@ -368,7 +488,7 @@ export const alumniController = {
     try {
       const { salary, ...rest } = body;
 
-      await prisma.work_experiences.create({
+      await prisma.work_expreriences.create({
         data: {
           alumniId: store.user.id,
           salary: Number(salary),
@@ -384,9 +504,12 @@ export const alumniController = {
       return { ok: false, error: "Failed to create work experience" };
     }
   },
-  work_list: async ({ store, set, query }) => {
+  work_list: async ({ set, query, params }) => {
     try {
-      const id = store.user.id;
+      const { alumniId: id } = params;
+      if (!id) {
+        return (set.status = 400);
+      }
       const { search, type, page, sort } = query;
 
       const skip = 10 * (Number(page) - 1);
@@ -482,6 +605,7 @@ export const alumniController = {
             edu_university: true,
             isOnTheLine: true,
             isInThai: true,
+            alumniId: true,
           },
           orderBy: {
             ...JSON.parse(sort),
@@ -713,23 +837,45 @@ export const alumniController = {
       set.status = 500;
     }
   },
-  alumni_list: async ({ query, set }) => {
+  alumni_list: async ({ query, set, store }) => {
     try {
       const {
         page,
         fac,
         dep,
-        type,
         search,
         sort,
         take,
         selectYearStart,
         selectYearEnd,
+        role,
       } = query;
+
+      const professor = await prisma.professor.findUnique({
+        where: {
+          professor_id: store?.user?.id,
+        },
+        select: {
+          departmentId: true,
+          facultyId: true,
+        },
+      });
+
+      const type = 1;
       const skip = take * (Number(page) - 1);
 
-      const facQuery = fac ? { facultyId: Number(fac) } : {};
-      const depIdQuery = dep ? { departmentId: Number(dep) } : {};
+      const facQuery =
+        Number(role) === 3
+          ? { facultyId: Number(professor.facultyId) }
+          : fac
+          ? { facultyId: Number(fac) }
+          : {};
+      let depIdQuery =
+        Number(role) === 2
+          ? { departmentId: Number(professor.departmentId) }
+          : dep
+          ? { departmentId: Number(dep) }
+          : {};
       const yearStartQ =
         selectYearStart && type < 2
           ? { year_start: Number(selectYearStart) }
@@ -845,103 +991,112 @@ export const alumniController = {
 
       let user;
       if (Number(roleId < 2)) {
-        const [data, workTimes, avgSalary, currentSalary] = await Promise.all([
-          prisma.alumni.findUnique({
-            where: {
-              alumni_id: id,
-            },
-            select: {
-              year_start: true,
-              alumni_id: true,
-              prefix: true,
-              fname: true,
-              lname: true,
-              facebook: true,
-              facultyId: true,
-              departmentId: true,
-              email1: true,
-              email2: true,
-              phone1: true,
-              phone2: true,
-              address: true,
-              profile: true,
-              province: true,
-              tambon: true,
-              amphure: true,
-              zipcode: true,
-              year_end: true,
-              updatedAt: true,
-              work_expreriences: {
-                select: {
-                  id: true,
-                  job_position: true,
-                  company_name: true,
-                  company_place: true,
-                  start_date: true,
-                  end_date: true,
-                  isCurrent: true,
-                  job_detail: true,
-                  remark: true,
-                  continued_study: true,
-                  edu_dep: true,
-                  edu_faculty: true,
-                  edu_level: true,
-                  edu_performance: true,
-                  edu_university: true,
-                  year_end: true,
-                  year_start: true,
+        const [data, contract, workTimes, avgSalary, currentSalary] =
+          await Promise.all([
+            prisma.alumni.findUnique({
+              where: {
+                alumni_id: id,
+              },
+              select: {
+                year_start: true,
+                alumni_id: true,
+                prefix: true,
+                fname: true,
+                lname: true,
+                facultyId: true,
+                departmentId: true,
+                year_end: true,
+                updatedAt: true,
+                profile: true,
+                work_expreriences: {
+                  select: {
+                    id: true,
+                    job_position: true,
+                    company_name: true,
+                    company_place: true,
+                    start_date: true,
+                    end_date: true,
+                    isCurrent: true,
+                    job_detail: true,
+                    remark: true,
+                    continued_study: true,
+                    edu_dep: true,
+                    edu_faculty: true,
+                    edu_level: true,
+                    edu_performance: true,
+                    edu_university: true,
+                    year_end: true,
+                    year_start: true,
+                  },
+                  orderBy: {
+                    isCurrent: "desc",
+                  },
                 },
-                orderBy: {
-                  isCurrent: "desc",
+                user_privacy: {
+                  select: {
+                    seeAddress: true,
+                    seeEmail: true,
+                    seeFacebook: true,
+                    seePhone: true,
+                    seeWorkExprerience: true,
+                    seeProfile: true,
+                  },
                 },
               },
-              user_privacy: {
-                select: {
-                  seeAddress: true,
-                  seeEmail: true,
-                  seeFacebook: true,
-                  seePhone: true,
-                  seeWorkExprerience: true,
-                  seeProfile: true,
-                },
+            }),
+            prisma.alumni_contract.findUnique({
+              where: {
+                alumniId: id,
               },
-            },
-          }),
-          prisma.work_expreriences.count({
-            where: {
-              alumniId: id,
-              continued_study: false,
-            },
-          }),
-          prisma.work_expreriences.aggregate({
-            where: {
-              alumniId: id,
-              continued_study: false,
-            },
-            _avg: {
-              salary: true,
-            },
-            _max: {
-              salary: true,
-            },
-            _min: {
-              salary: true,
-            },
-          }),
-          prisma.work_expreriences.aggregate({
-            where: {
-              alumniId: id,
-              continued_study: false,
-              isCurrent: true,
-            },
-            _sum: {
-              salary: true,
-            },
-          }),
-        ]);
+              select: {
+                facebook: true,
+                email1: true,
+                email2: true,
+                phone1: true,
+                phone2: true,
+                address: true,
+                province: true,
+                tambon: true,
+                amphure: true,
+                zipcode: true,
+              },
+            }),
+            prisma.work_expreriences.count({
+              where: {
+                alumniId: id,
+                continued_study: false,
+              },
+            }),
+            prisma.work_expreriences.aggregate({
+              where: {
+                alumniId: id,
+                continued_study: false,
+              },
+              _avg: {
+                salary: true,
+              },
+              _max: {
+                salary: true,
+              },
+              _min: {
+                salary: true,
+              },
+            }),
+            prisma.work_expreriences.aggregate({
+              where: {
+                alumniId: id,
+                continued_study: false,
+                isCurrent: true,
+              },
+              _sum: {
+                salary: true,
+              },
+            }),
+          ]);
 
         user = {
           ...data,
+          ...contract,
           workTimes,
           avgSalary: avgSalary._avg.salary,
           maxSalary: avgSalary._max.salary,
@@ -955,23 +1110,14 @@ export const alumniController = {
           },
           select: {
             professor_id: true,
+            prefix: true,
             fname: true,
             lname: true,
             academic_rank: true,
             univercity_position: true,
-            facebook: true,
             facultyId: true,
-            departmentId: true,
-            address: true,
-            amphure: true,
-            email1: true,
-            email2: true,
-            phone1: true,
-            phone2: true,
             profile: true,
-            province: true,
-            tambon: true,
-            zipcode: true,
+            departmentId: true,
             user_privacy: {
               select: {
                 seeAddress: true,
@@ -983,6 +1129,27 @@ export const alumniController = {
             },
           },
         });
+        const contract = await prisma.alumni_contract.findFirst({
+          where: {
+            professorProfessor_id: id,
+          },
+          select: {
+            facebook: true,
+            email1: true,
+            email2: true,
+            phone1: true,
+            phone2: true,
+            address: true,
+            province: true,
+            tambon: true,
+            amphure: true,
+            zipcode: true,
+          },
+        });
+        user = {
+          ...user,
+          ...contract,
+        };
       }
 
       if (!user) return (set.status = 400);
@@ -1010,11 +1177,6 @@ export const alumniController = {
             prefix: true,
             fname: true,
             lname: true,
-            email1: true,
-            email2: true,
-            facebook: true,
-            phone1: true,
-            phone2: true,
           },
         });
       } else {
@@ -1026,51 +1188,56 @@ export const alumniController = {
             prefix: true,
             fname: true,
             lname: true,
-            email1: true,
-            email2: true,
-            facebook: true,
-            phone1: true,
-            phone2: true,
             academic_rank: true,
           },
         });
       }
+      console.log(sender);
 
       let emailTo;
+      let toUserPrivacy;
       if (Number(roleId) < 2) {
-        emailTo = await prisma.alumni.findUnique({
+        emailTo = await prisma.alumni_contract.findUnique({
           where: {
-            alumni_id: id,
+            alumniId: id,
           },
           select: {
             email1: true,
             email2: true,
-            fname: true,
-            lname: true,
-            user_privacy: {
-              select: {
-                allowedAlumniSendEmail: true,
-                allowedProfessorSendEmail: true,
-              },
-            },
+            phone1: true,
+            phone2: true,
+            facebook: true,
+          },
+        });
+        toUserPrivacy = await prisma.user_privacy.findUnique({
+          where: {
+            alumniId: id,
+          },
+          select: {
+            allowedAlumniSendEmail: true,
+            allowedProfessorSendEmail: true,
           },
         });
       } else {
-        emailTo = await prisma.professor.findUnique({
+        emailTo = await prisma.alumni_contract.findUnique({
           where: {
-            professor_id: id,
+            professorProfessor_id: id,
           },
           select: {
             email1: true,
             email2: true,
-            fname: true,
-            lname: true,
-            user_privacy: {
-              select: {
-                allowedAlumniSendEmail: true,
-                allowedProfessorSendEmail: true,
-              },
-            },
+            phone1: true,
+            phone2: true,
+            facebook: true,
+          },
+        });
+        toUserPrivacy = await prisma.user_privacy.findUnique({
+          where: {
+            professorId: id,
+          },
+          select: {
+            allowedAlumniSendEmail: true,
+            allowedProfessorSendEmail: true,
           },
         });
       }
@@ -1079,29 +1246,29 @@ export const alumniController = {
       }
 
       if (
-        (senderRole < 2 && !emailTo?.user_privacy?.allowedAlumniSendEmail) ||
-        (senderRole >= 2 && !emailTo?.user_privacy?.allowedProfessorSendEmail)
+        (senderRole < 2 && !toUserPrivacy?.allowedAlumniSendEmail) ||
+        (senderRole >= 2 && !toUserPrivacy.allowedProfessorSendEmail)
       ) {
         return { err: "ผู้ใช้คนนี้ปฏิเสธการรับข้อความจากคุณ" };
       }
 
       const senderContact = sendMyContact
         ? `โปรดติดต่อกลับทางช่องทางเหล่านี้\nEmail:${
-            sender.email1 || sender.email2
-          }\n${sender?.phone1 ? `Call : ${sender?.phone1}` : ""}${
-            sender?.phone2 ? `\nCall : ${sender?.phone2}` : ""
-          }${sender?.facebook ? `\nFacebook : ${sender?.facebook}` : ""}`
+            emailTo.email1 || emailTo.email2
+          }\n${emailTo?.phone1 ? `Call : ${emailTo?.phone1}` : ""}${
+            emailTo?.phone2 ? `\nCall : ${emailTo?.phone2}` : ""
+          }${emailTo?.facebook ? `\nFacebook : ${emailTo?.facebook}` : ""}`
         : null;
 
       const mailOptions = {
-        from: sender?.email1 || sender?.email2,
+        from: emailTo?.email1 || emailTo?.email2,
         to: emailTo?.email1 || emailTo.email2,
         subject:
-          "มีผู้ส่งข้อความหาคุณผ่านระบบศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม",
+          "มีผู้ส่งข้อความหาคุณผ่านระบบสารสนเทศเครือข่ายศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม",
         text: `ข้อความจาก${type < 2 ? sender.prefix : sender?.academic_rank}${
           sender.fname
-        } ${sender.lname} ถึงคุณ${emailTo.fname} ${
-          emailTo.lname
+        } ${sender.lname} ถึงคุณ${sender.fname} ${
+          sender.lname
         }\n"${text}"\n\n${senderContact}`,
       };
 

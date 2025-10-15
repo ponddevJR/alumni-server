@@ -89,7 +89,7 @@ export const dashboardController = {
           },
         }),
 
-        prisma.alumni.groupBy({
+        prisma.alumni_contract.groupBy({
           by: ["province"],
           where: filterCondition,
           _count: { province: true },
@@ -295,7 +295,105 @@ export const dashboardController = {
       set.status = 500;
     }
   },
- 
+  pie_chart_data: async ({ store, set, query }) => {
+    try {
+      const { id, roleId } = store.user;
+      if (!id || id < 2) return (set.status = 400);
+
+      const { facultyId: facId, selectYearStart, selectYearEnd } = query;
+      console.log("🚀 ~ query:", query);
+
+      let facultyId = facId ? Number(facId) : null;
+
+      // ถ้าเป็นอาจารย์ (roleId = 3) → ดึง facultyId ของอาจารย์คนนั้น
+      if (roleId === 3) {
+        const user = await prisma.professor.findUnique({
+          where: { professor_id: id },
+          select: { facultyId: true },
+        });
+        facultyId = user?.facultyId;
+      }
+
+      // เงื่อนไข where หลัก
+      const whereClause = {
+        salary: { not: null },
+        alumni: {},
+      };
+
+      // ถ้ามี facultyId → filter ตามคณะ
+      if (facultyId) {
+        whereClause.alumni.facultyId = facultyId;
+      }
+
+      // ถ้ามีปีเริ่มหรือปีจบ → filter ตาม alumni
+      if (selectYearStart) {
+        whereClause.alumni.year_start = Number(selectYearStart);
+      }
+      if (selectYearEnd) {
+        whereClause.alumni.year_end = Number(selectYearEnd);
+      }
+
+      // Query: groupBy ศิษย์เก่า เพื่อเฉลี่ยเงินเดือน
+      const result = await prisma.work_expreriences.groupBy({
+        by: ["alumniId"],
+        where: whereClause,
+        _avg: { salary: true },
+      });
+
+      if (!result.length) {
+        return [];
+      }
+
+      // ดึงข้อมูลคณะ/สาขาของศิษย์เก่าที่มีในผลลัพธ์
+      const alumniWithFacultyDept = await prisma.alumni.findMany({
+        where: {
+          alumni_id: { in: result.map((r) => r.alumniId) },
+        },
+        select: {
+          alumni_id: true,
+          facultyId: true,
+          departmentId: true,
+          fname: true,
+          lname: true,
+        },
+      });
+
+      // รวมผลลัพธ์
+      const merged = alumniWithFacultyDept.map((alum) => {
+        const avgData = result.find((r) => r.alumniId === alum.alumni_id);
+        return {
+          facultyId: alum.facultyId,
+          departmentId: alum.departmentId,
+          alumniId: alum.alumni_id,
+          fullname: `${alum.fname} ${alum.lname}`,
+          averageSalary: avgData?._avg.salary ?? 0,
+        };
+      });
+
+      // ✅ เฉลี่ยตามเงื่อนไข
+      // ถ้ามี facultyId → เฉลี่ยตาม department (สาขา)
+      // ถ้าไม่มี facultyId → เฉลี่ยตาม faculty
+      const grouped = merged.reduce((acc, cur) => {
+        const key = facultyId ? cur.departmentId : cur.facultyId;
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(cur.averageSalary);
+        return acc;
+      }, {});
+
+      const final = Object.entries(grouped).map(([key, salaries]) => ({
+        [facultyId ? "departmentId" : "facultyId"]: Number(key),
+        avgSalary: salaries.reduce((a, b) => a + b, 0) / (salaries.length || 1),
+      }));
+
+      return final;
+    } catch (error) {
+      console.error("pie_chart_data error:", error);
+      set.status = 500;
+      return { message: "Internal Server Error" };
+    }
+  },
+
   population_job: async ({ store, set, query }) => {
     try {
       const { id, roleId } = store.user;

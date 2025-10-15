@@ -55,9 +55,7 @@ export const presidentController = {
         work = JSON.parse(current);
         filter = {
           ...filter,
-          work_expreriences: {
-            ...work,
-          },
+          ...work,
         };
       }
 
@@ -77,6 +75,7 @@ export const presidentController = {
             lname: true,
             facultyId: true,
             departmentId: true,
+            canUse: true,
             work_expreriences: {
               select: {
                 isCurrent: true,
@@ -524,9 +523,20 @@ export const presidentController = {
         };
       }
 
-      const alumniEmails = await prisma.alumni.findMany({
+      const alumnis = await prisma.alumni.findMany({
         where: {
           ...filter,
+        },
+        select: {
+          alumni_id: true,
+        },
+      });
+
+      const alumniEmails = await prisma.alumni_contract.findMany({
+        where: {
+          alumniId: {
+            in: alumnis.map((a) => a.alumni_id),
+          },
         },
         select: {
           email1: true,
@@ -542,8 +552,8 @@ export const presidentController = {
             from: envConfig.mail_user,
             to: toEmail,
             subject:
-              "คุณได้รับข้อความจากระบบศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม",
-            html: `<h1>${title}</h1>${detail}`,
+              "คุณได้รับข้อความจากระบบสารสนเทศเครือข่ายศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม",
+            html: `<h4>${title}</h4>${detail}`,
           };
 
           await transporter.sendMail(mailOptions);
@@ -552,6 +562,313 @@ export const presidentController = {
     } catch (error) {
       console.error(error);
       set.status = 500;
+    }
+  },
+  delete_alumni_contract: async ({ params, set, query }) => {
+    try {
+      const { alumniId } = params;
+      if (!alumniId) {
+        return (set.status = 400);
+      }
+
+      const hadContract = await prisma.alumni_contract.findUnique({
+        where: {
+          alumniId,
+        },
+      });
+      if (!hadContract) {
+        return { err: "ไม่พบช่องทางการติดต่อของศิษย์เก่ารายนี้" };
+      }
+      const del = await prisma.alumni_contract.delete({
+        where: {
+          alumniId,
+        },
+      });
+      if (!del) {
+        return (set.status = 400);
+      }
+
+      // sendEmail
+      const { reasonToDelete } = query;
+      const emailTo = await prisma.alumni_contract.findUnique({
+        where: {
+          alumniId,
+        },
+        select: {
+          email1: true,
+          email2: true,
+        },
+      });
+      const mailOptions = {
+        from: envConfig.mail_user,
+        to: emailTo.email1 || emailTo.email2 || alumniId + "@rmu.ac.th",
+        subject: "แจ้งเตือนลบข้อมูลช่องทางการติดต่อของคุณ",
+        text: `ระบบสารสนเทศเครือข่ายศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม ได้ลบข้อมูลช่องทางการติดต่อของคุณเพราะ\n"${reasonToDelete}"\nข้อมูลของคุณถูกลบโดยผู้ดูแลระบบ`,
+      };
+      await transporter.sendMail(mailOptions);
+
+      set.status = 200;
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  delete_work_exprerience: async ({ set, params, query }) => {
+    try {
+      const { alumniId } = params;
+      if (!alumniId) {
+        return (set.status = 400);
+      }
+
+      const del = await prisma.work_expreriences.deleteMany({
+        where: {
+          alumniId,
+        },
+      });
+      if (!del) {
+        return (set.status = 400);
+      }
+
+      // sendEmail
+      const { reasonToDelete } = query;
+      const emailTo = await prisma.alumni_contract.findUnique({
+        where: {
+          alumniId,
+        },
+        select: {
+          email1: true,
+          email2: true,
+        },
+      });
+      const mailOptions = {
+        from: envConfig.mail_user,
+        to: emailTo.email1 || emailTo.email2 || alumniId + "@rmu.ac.th",
+        subject: "แจ้งเตือนลบข้อมูลช่องทางการติดต่อของคุณ",
+        text: `ระบบสารสนเทศเครือข่ายศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม ได้ลบข้อมูลช่องทางการติดต่อของคุณเพราะ\n"${reasonToDelete}"\nข้อมูลของคุณถูกลบโดยผู้ดูแลระบบ`,
+      };
+      await transporter.sendMail(mailOptions);
+
+      set.status = 200;
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  get_users: async ({ set, query }) => {
+    try {
+      const {
+        page,
+        facultyId,
+        departmentId,
+        take,
+        search,
+        sort,
+        filter: extra,
+      } = query;
+      const skip = take * (page - 1);
+
+      let filter = {};
+      if (facultyId) {
+        filter = { facultyId: Number(facultyId) };
+      }
+      if (departmentId) {
+        filter = { departmentId: Number(departmentId) };
+      }
+      if (search) {
+        filter = {
+          ...filter,
+          OR: [
+            {
+              prefix: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              fname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lname: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              academic_rank: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              univercity_position: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          ],
+        };
+      }
+
+      if (extra) {
+        filter = {
+          ...filter,
+          ...JSON.parse(extra),
+        };
+      }
+
+      const [data, total] = await Promise.all([
+        prisma.professor.findMany({
+          take: Number(take),
+          skip,
+          where: {
+            ...filter,
+          },
+          select: {
+            professor_id: true,
+            academic_rank: true,
+            fname: true,
+            lname: true,
+            prefix: true,
+            departmentId: true,
+            facultyId: true,
+            univercity_position: true,
+            canUse: true,
+          },
+          orderBy: {
+            ...JSON.parse(sort),
+          },
+        }),
+        prisma.professor.count({
+          where: {
+            ...filter,
+          },
+        }),
+      ]);
+
+      set.status = 200;
+      return {
+        data,
+        total,
+        totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
+      };
+    } catch (error) {
+      console.error(error);
+      set.status = 500;
+    }
+  },
+  manage_account: async ({ set, body, params }) => {
+    try {
+      const { user_id } = params;
+      if (!user_id) {
+        set.status = 400;
+        return { error: "Missing user_id" };
+      }
+
+      const { canUse, isAlumni } = body;
+
+      // Single update query with all needed data
+      let update;
+      if (isAlumni) {
+        update = await prisma.alumni.update({
+          where: {
+            alumni_id: user_id,
+          },
+          data: {
+            canUse,
+          },
+        });
+      } else {
+        update = await prisma.professor.update({
+          where: {
+            professor_id: user_id,
+          },
+          data: {
+            canUse,
+          },
+        });
+      }
+
+      if (!update) {
+        set.status = 400;
+        return { error: "Update failed or contract not found" };
+      }
+
+      // Use data from update query (no redundant query)
+      const idField = isAlumni ? "alumniId" : "professorProfessor_id";
+      const contract = await prisma.alumni_contract.findFirst({
+        where: {
+          [idField]: user_id,
+        },
+        select: {
+          email1: true,
+          email2: true,
+        },
+      });
+      const recipientEmail = contract.email1 || contract.email2;
+      console.log("🚀 ~ recipientEmail:", recipientEmail);
+
+      // FIXED: Corrected logic - canUse means account is active/approved
+      const mailOptions = {
+        from: envConfig.mail_user,
+        to: recipientEmail,
+        subject: canUse
+          ? "แจ้งเตือนบัญชีได้รับการอนุมัติโดยผู้ดูแลระบบ"
+          : "แจ้งเตือนบัญชีถูกระงับชั่วคราวโดยผู้ดูแลระบบ",
+        html: `
+<div style="font-family: 'Sarabun', sans-serif; background-color: #f6f9fc; padding: 30px;">
+  <table align="center" width="600" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden;">
+    <tr>
+      <td style="background-color: #007bff; color: #ffffff; text-align: center; padding: 20px;">
+        <h2 style="margin: 0;">ระบบสารสนเทศเครือข่ายศิษย์เก่า</h2>
+        <p style="margin: 0;">มหาวิทยาลัยราชภัฏมหาสารคาม</p>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding: 30px; color: #333333;">
+        <h3 style="color: #007bff; margin-top: 0;">
+          ${
+            canUse
+              ? "✅ บัญชีของคุณได้รับการอนุมัติแล้ว"
+              : "⚠️ บัญชีของคุณถูกระงับชั่วคราว"
+          }
+        </h3>
+        ${
+          canUse
+            ? `
+            <p style="font-size: 15px; line-height: 1.6;">
+              ขอแจ้งให้ทราบว่า บัญชีของคุณได้ผ่านการตรวจสอบและ 
+              <strong style="color:#28a745;">ได้รับการอนุมัติ</strong> แล้ว 
+              คุณสามารถเข้าสู่ระบบสารสนเทศเครือข่ายศิษย์เก่าได้ทันที
+            </p>`
+            : `
+            <p style="font-size: 15px; line-height: 1.6;">
+              บัญชีของคุณได้ถูก <strong style="color:#dc3545;">ระงับการใช้งานชั่วคราว</strong> 
+              โดยผู้ดูแลระบบ เนื่องจากอาจมีการตรวจสอบข้อมูลเพิ่มเติม
+              หากต้องการข้อมูลเพิ่มเติม โปรดติดต่อเจ้าหน้าที่ดูแลระบบผ่านช่องทางที่ระบุด้านล่าง
+            </p>`
+        }
+        <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+
+      </td>
+    </tr>
+  </table>
+</div>
+`,
+      };
+
+      await transporter.sendMail(mailOptions);
+      set.status = 200;
+      return { ok: true };
+    } catch (error) {
+      console.error("Error in manage_account:", error);
+      set.status = 500;
+      return { error: "Internal server error" };
     }
   },
 };

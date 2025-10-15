@@ -1,5 +1,4 @@
-
-import { envConfig ,transporter} from "../config/config";
+import { envConfig, transporter } from "../config/config";
 import { PrismaClient } from "../src/generated/prisma";
 import bcryptjs from "bcryptjs";
 
@@ -52,8 +51,7 @@ export const authController = {
           alumni_id: true,
           allowedAccount: true,
           passwordHash: true,
-          email1: true,
-          email2: true,
+          canUse: true,
         },
       });
       let roleId = 1;
@@ -67,6 +65,7 @@ export const authController = {
             professor_id: true,
             univercity_position: true,
             passwordHash: true,
+            canUse: true,
           },
         });
 
@@ -77,7 +76,7 @@ export const authController = {
         roleId = 2;
 
         const aj_role = user.univercity_position;
-        if (aj_role.includes("รองคณะบดี") || aj_role.includes("คณะบดี")) {
+        if (aj_role.includes("รองคณบดี") || aj_role.includes("คณบดี")) {
           roleId = 3;
         }
         if (aj_role.includes("รองอธิการบดี") || aj_role.includes("อธิการบดี")) {
@@ -93,11 +92,19 @@ export const authController = {
           return { err: "รหัสผ่านไม่ถูกต้อง" };
         }
 
+        // สร้างช่องทางติดต่อ
+        await prisma.alumni_contract.create({
+          data: {
+            alumniId: username,
+            email1: username + "@rmu.ac.th",
+          },
+        });
+
         const mailOptions = {
           from: envConfig.mail_user,
           to: username + "@rmu.ac.th",
           subject: "เข้าสู่ระบบครั้งแรก",
-          text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของ${user.fname} \n"${authNum}"`,
+          text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบสารสนเทศเครือข่ายศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของ${user.fname} \n"${authNum}"`,
         };
 
         await transporter.sendMail(mailOptions);
@@ -109,13 +116,29 @@ export const authController = {
         return { err: "รหัสผ่านไม่ถูกต้อง" };
       }
 
+      // ตรวจสอบสถานะบัญชี
+      if (!user.canUse) {
+        return {
+          err: "บัญชีของคุณถูกระงับอยู่ในขณะนี้ โปรดติดต่อผู้เกี่ยวข้อง",
+        };
+      }
+
       //   ยังไม่เปลี่ยนรหัสผ่าน
       if (roleId === 1 && username === password) {
+        const toEmail = await prisma.alumni_contract.findUnique({
+          where: {
+            alumniId: username,
+          },
+          select: {
+            email1: true,
+            email2: true,
+          },
+        });
         const mailOptions = {
           from: envConfig.mail_user,
-          to: user.email1 || user.email2,
+          to: toEmail.email1 || toEmail.email2,
           subject: "รหัสยืนยันตัวตนเข้าใช้งานระบบ",
-          text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของ${user.fname} \n"${authNum}"`,
+          text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบสารสนเทศเครือข่ายศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของ${user.fname} \n"${authNum}"`,
         };
 
         await transporter.sendMail(mailOptions);
@@ -196,7 +219,6 @@ export const authController = {
           data: {
             allowedAccount: true,
             passwordHash: hash,
-            email1: alumni_id + "@rmu.ac.th",
             facultyId,
             departmentId: depId,
             year_start: Number(
@@ -329,7 +351,7 @@ export const authController = {
 
       if (isAlumni && !user.allowedAccount) {
         return {
-          err: "พบว่าคุณยังไม่เคยเข้าสู่ระบบศิษย์เก่า โปรดอ่านรายละเอียดที่หน้าแรก",
+          err: "พบว่าคุณยังไม่เคยเข้าสู่ระบบสารสนเทศเครือข่ายศิษย์เก่า โปรดอ่านรายละเอียดที่หน้าแรก",
         };
       }
 
