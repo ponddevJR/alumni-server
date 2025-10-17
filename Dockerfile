@@ -34,9 +34,11 @@ FROM base AS release
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /app .
 
+# Create upload directory with full permissions
+RUN mkdir -p /app/public/upload && chmod -R 777 /app/public/upload
+
 # Expose port (adjust if your Elysia app uses a different port)
 EXPOSE 8800
 
 # Run the app
-USER bun
 ENTRYPOINT [ "bun", "run", "src/index.js" ]

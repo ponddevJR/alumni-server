@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 const randomNum = () => {
   let random = Math.floor(Math.random() * 999999);
-  while (random.length < 6) {
+  while (random.length <= 6) {
     random = Math.floor(Math.random() * 999999);
   }
   return random;
