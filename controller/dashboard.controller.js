@@ -198,9 +198,10 @@ export const dashboardController = {
         studyOtherCountry,
         countryWork,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   chart_bar_data: async ({ store, set, query }) => {
@@ -292,9 +293,10 @@ export const dashboardController = {
 
       set.status = 200;
       return result;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   pie_chart_data: async ({ store, set, query }) => {
@@ -303,7 +305,6 @@ export const dashboardController = {
       if (!id || id < 2) return (set.status = 400);
 
       const { facultyId: facId, selectYearStart, selectYearEnd } = query;
-      console.log("🚀 ~ query:", query);
 
       let facultyId = facId ? Number(facId) : null;
 
@@ -389,10 +390,10 @@ export const dashboardController = {
       }));
 
       return final;
-    } catch (error) {
-      console.error("pie_chart_data error:", error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { message: "Internal Server Error" };
+      return { err };
     }
   },
 
@@ -467,9 +468,10 @@ export const dashboardController = {
 
       set.status = 200;
       return result;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   most_live_province: async ({ store, set, query }) => {
@@ -548,9 +550,10 @@ export const dashboardController = {
       ]);
       set.status = 200;
       return { result, total };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   workrate_percent: async ({ store, set, query }) => {
@@ -637,9 +640,10 @@ export const dashboardController = {
 
       set.status = 200;
       return percentByFaculty; // [{ facultyId, employed, total, percent }, ...]
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   no_work_data: async ({ store, set, query }) => {
@@ -724,9 +728,10 @@ export const dashboardController = {
 
       set.status = 200;
       return { result, alumniNoWork };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   list_work_unemployed: async ({ store, set, query }) => {
@@ -870,9 +875,10 @@ export const dashboardController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   list_work: async ({ store, set, query }) => {
@@ -1063,9 +1069,10 @@ export const dashboardController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   list_no_work_data: async ({ store, set, query }) => {
@@ -1197,9 +1204,10 @@ export const dashboardController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   work_place_rate: async ({ query, set, store }) => {
@@ -1302,9 +1310,10 @@ export const dashboardController = {
         ],
         countryList: otherCountryList,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   master_degree_list: async ({ set, store, query }) => {
@@ -1476,9 +1485,10 @@ export const dashboardController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   work_other_country_list: async ({ query, set, store }) => {
@@ -1642,9 +1652,10 @@ export const dashboardController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   most_salary_byname: async ({ set, store, query }) => {
@@ -1719,9 +1730,10 @@ export const dashboardController = {
 
       set.status = 200;
       return alumni.alumniId;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   study_other_country_list: async ({ set, store, query }) => {
@@ -1899,9 +1911,10 @@ export const dashboardController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
 };

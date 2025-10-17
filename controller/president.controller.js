@@ -100,9 +100,10 @@ export const presidentController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.erroror(err);
       set.status = 500;
+      return { err };
     }
   },
   create_news: async ({ body, set }) => {
@@ -144,8 +145,8 @@ export const presidentController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
     }
   },
@@ -241,9 +242,10 @@ export const presidentController = {
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
         total,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   delete_news: async ({ params, set }) => {
@@ -282,9 +284,10 @@ export const presidentController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   get_news_byId: async ({ params, set }) => {
@@ -316,9 +319,10 @@ export const presidentController = {
 
       set.status = 200;
       return data;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   update_news: async ({ body, set, params }) => {
@@ -389,9 +393,10 @@ export const presidentController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   get_all_avg: async ({ set }) => {
@@ -420,9 +425,10 @@ export const presidentController = {
         allDonation,
         allViews: allViews._max.view,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   update_view: async ({ params, set }) => {
@@ -455,9 +461,10 @@ export const presidentController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   get_other__news: async ({ set, params }) => {
@@ -486,9 +493,10 @@ export const presidentController = {
 
       set.status = 200;
       return result;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   send_email: async ({ body, set, query }) => {
@@ -559,9 +567,10 @@ export const presidentController = {
           await transporter.sendMail(mailOptions);
         });
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   delete_alumni_contract: async ({ params, set, query }) => {
@@ -609,9 +618,10 @@ export const presidentController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   delete_work_exprerience: async ({ set, params, query }) => {
@@ -651,9 +661,10 @@ export const presidentController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   get_users: async ({ set, query }) => {
@@ -756,9 +767,10 @@ export const presidentController = {
         total,
         totalPage: Math.ceil(total / take) < 1 ? 1 : Math.ceil(total / take),
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   manage_account: async ({ set, body, params }) => {
@@ -766,7 +778,7 @@ export const presidentController = {
       const { user_id } = params;
       if (!user_id) {
         set.status = 400;
-        return { error: "Missing user_id" };
+        return { err: "Missing user_id" };
       }
 
       const { canUse, isAlumni } = body;
@@ -795,7 +807,7 @@ export const presidentController = {
 
       if (!update) {
         set.status = 400;
-        return { error: "Update failed or contract not found" };
+        return { err: "Update failed or contract not found" };
       }
 
       // Use data from update query (no redundant query)
@@ -865,10 +877,10 @@ export const presidentController = {
       await transporter.sendMail(mailOptions);
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error("Error in manage_account:", error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { error: "Internal server error" };
+      return { err };
     }
   },
 };

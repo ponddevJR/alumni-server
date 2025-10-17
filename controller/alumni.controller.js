@@ -110,10 +110,10 @@ export const alumniController = {
 
       set.status = 200;
       return { alumni: user };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { error: "Internal server error" };
+      return { err };
     }
   },
   get_contract: async ({ set, store }) => {
@@ -162,9 +162,10 @@ export const alumniController = {
 
       set.status = 200;
       return contract;
-    } catch (error) {
-      console.error(error);
-      return (set.status = 500);
+    } catch (err) {
+      console.error(err);
+      set.status = 500;
+      return { err };
     }
   },
   update_contact: async ({ body, store, set }) => {
@@ -205,10 +206,10 @@ export const alumniController = {
 
       set.status = 200;
       return { success: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { error: "Internal server error" };
+      return { err };
     }
   },
   upload_profile: async ({ body, set, store }) => {
@@ -281,12 +282,12 @@ export const alumniController = {
           if (remoteExists) {
             await sftp.delete(delRemotePath);
           }
-        } catch (delError) {
+        } catch (delerr) {
           console.warn(
             "Warning: Could not delete old image:",
-            delError.message
+            delerr.message
           );
-          // ไม่ throw error เพราะไฟล์อาจถูกลบไปแล้ว
+          // ไม่ throw err เพราะไฟล์อาจถูกลบไปแล้ว
         }
       }
 
@@ -297,10 +298,10 @@ export const alumniController = {
       const remoteDir = remotePath.substring(0, remotePath.lastIndexOf("/"));
       try {
         await sftp.mkdir(remoteDir, true);
-      } catch (mkdirError) {
+      } catch (mkdirerr) {
         // โฟลเดอร์อาจมีอยู่แล้ว
-        if (mkdirError.code !== 4) {
-          throw mkdirError;
+        if (mkdirerr.code !== 4) {
+          throw mkdirerr;
         }
       }
 
@@ -315,7 +316,7 @@ export const alumniController = {
       // ตรวจสอบว่าอัปโหลดสำเร็จ
       const uploaded = await sftp.exists(remotePath);
       if (!uploaded) {
-        throw new Error("File upload verification failed");
+        throw new err("File upload verification failed");
       }
 
       // อัปเดตฐานข้อมูล
@@ -331,13 +332,10 @@ export const alumniController = {
 
       set.status = 200;
       return { ok: true, profile: imgName };
-    } catch (error) {
-      console.error("Profile upload error:", error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return {
-        err: "เกิดข้อผิดพลาดในการอัปโหลด",
-        details: error.message,
-      };
+      return { err };
     } finally {
       await sftp.end();
     }
@@ -387,10 +385,10 @@ export const alumniController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error("Delete profile error:", error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { err: "เกิดข้อผิดพลาดในการลบรูป" };
+      return { err };
     } finally {
       await sftp.end();
     }
@@ -447,10 +445,10 @@ export const alumniController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error("Update live error:", error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { err: "เกิดข้อผิดพลาดในการอัปเดตที่อยู่" };
+      return { err };
     }
   },
   get_privacy: async ({ store, set }) => {
@@ -482,8 +480,8 @@ export const alumniController = {
 
       set.status = 200;
       return privacy || {};
-    } catch (error) {
-      console.error("Get privacy error:", error);
+    } catch (err) {
+      console.error("Get privacy err:", err);
       set.status = 500;
       return { err: "เกิดข้อผิดพลาดในการดึงข้อมูล privacy" };
     }
@@ -493,7 +491,7 @@ export const alumniController = {
       const id = store.user.id;
       if (!id) {
         set.status = 400;
-        return { error: "Invalid user" };
+        return { err: "Invalid user" };
       }
 
       // whitelist ฟิลด์ที่แก้ไขได้
@@ -516,7 +514,7 @@ export const alumniController = {
 
       if (Object.keys(data).length === 0) {
         set.status = 400;
-        return { error: "No valid fields to update" };
+        return { err: "No valid fields to update" };
       }
 
       let update;
@@ -534,15 +532,15 @@ export const alumniController = {
 
       if (update.count === 0) {
         set.status = 404;
-        return { error: "Privacy settings not found" };
+        return { err: "Privacy settings not found" };
       }
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { error: "Internal server error" };
+      return { err };
     }
   },
   work_create: async ({ body, store, set }) => {
@@ -559,10 +557,10 @@ export const alumniController = {
 
       set.status = 201; // ใช้ 201 สำหรับ create success
       return { ok: true };
-    } catch (error) {
-      console.error("Error creating work experience:", error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
-      return { ok: false, error: "Failed to create work experience" };
+      return { err };
     }
   },
   work_list: async ({ set, query, params }) => {
@@ -772,8 +770,8 @@ export const alumniController = {
           currentSalary: currentSalary._sum.salary,
         },
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
     }
   },
@@ -790,9 +788,10 @@ export const alumniController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   work_update: async ({ body, params, set }) => {
@@ -820,9 +819,10 @@ export const alumniController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   update_password: async ({ body, store, set }) => {
@@ -893,9 +893,10 @@ export const alumniController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   alumni_list: async ({ query, set, store }) => {
@@ -1018,9 +1019,10 @@ export const alumniController = {
         totalPage: Math.max(1, Math.ceil(count / take)),
         all: count,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
 
@@ -1197,9 +1199,10 @@ export const alumniController = {
 
       set.status = 200;
       return user;
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   send_email: async ({ body, set, store }) => {
@@ -1233,7 +1236,6 @@ export const alumniController = {
           },
         });
       }
-      console.log(sender);
 
       let emailTo;
       let toUserPrivacy;
@@ -1316,9 +1318,10 @@ export const alumniController = {
       await transporter.sendMail(mailOptions);
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
 };

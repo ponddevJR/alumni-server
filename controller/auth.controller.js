@@ -182,9 +182,10 @@ export const authController = {
           ok: true,
         };
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
 
@@ -259,6 +260,7 @@ export const authController = {
     } catch (err) {
       console.error(err);
       set.status = 500;
+      return { err };
     }
   },
 
@@ -300,9 +302,10 @@ export const authController = {
         ...user,
         ...data,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   logout: ({ set }) => {
@@ -372,9 +375,10 @@ export const authController = {
       await transporter.sendMail(mailOptions);
       set.status = 200;
       return { ok: true, auth: authNum };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
   forgotpass_newpass: async ({ body, set }) => {
@@ -434,9 +438,10 @@ export const authController = {
 
       set.status = 200;
       return { ok: true };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       set.status = 500;
+      return { err };
     }
   },
 };
