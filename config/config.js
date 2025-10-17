@@ -1,5 +1,6 @@
 import "dotenv/config";
 import nodemailler from "nodemailer";
+import SftpClient from "ssh2-sftp-client";
 export const envConfig = {
   port: Number(process.env.PORT) || 8800,
   jwt_secret: process.env.JWT_SECRET,
@@ -19,3 +20,16 @@ export const transporter = nodemailler.createTransport({
     pass: envConfig.mail_pass,
   },
 });
+
+export const sftpConfig = async () => {
+  const sftp = new SftpClient();
+
+  await sftp.connect({
+    host: process.env.SFTP_HOST,
+    port: process.env.SFTP_PORT,
+    username: process.env.SFTP_USER,
+    password: process.env.SFTP_PASS,
+  });
+
+  return sftp;
+};

@@ -3,7 +3,7 @@ import bcryptjs from "bcryptjs";
 import path from "path";
 import { unlink } from "fs/promises";
 import { existsSync } from "fs";
-import { transporter } from "../config/config";
+import { sftpConfig, transporter } from "../config/config";
 import { type } from "os";
 
 const prisma = new PrismaClient();
@@ -109,7 +109,6 @@ export const alumniController = {
       };
 
       set.status = 200;
-      console.log("🚀 ~ user:", user);
       return { alumni: user };
     } catch (error) {
       console.error(error);
@@ -120,7 +119,6 @@ export const alumniController = {
   get_contract: async ({ set, store }) => {
     try {
       const { id, roleId } = store.user;
-      console.log("🚀 ~ roleId:", roleId);
       if (!id) return (set.status = 400);
 
       let contract;
@@ -214,6 +212,7 @@ export const alumniController = {
     }
   },
   upload_profile: async ({ body, set, store }) => {
+    const sftp = await sftpConfig();
     try {
       const { file } = body;
       const { id, roleId } = store.user;
@@ -253,20 +252,71 @@ export const alumniController = {
         select: { profile: true },
       });
 
+      // ทำความสะอาดชื่อไฟล์
+      const sanitizedName =
+        file.name?.replace(/[^a-zA-Z0-9.-]/g, "_") || "image.jpg";
+      const imgName = `${Date.now()}_${sanitizedName}`;
+
+      // Local path (Windows)
+      const localPath = `./public/upload/${imgName}`;
+      const remotePath = `/home/your-username/uploads/${imgName}`;
+
+      // ลบภาพเก่า (ถ้ามี)
       if (hadImage?.profile) {
-        const delPath = path.join(
-          import.meta.dir,
-          "../public/upload",
-          hadImage.profile
-        );
-        if (existsSync(delPath)) {
-          await unlink(delPath);
+        try {
+          const delLocalPath = path.join(
+            import.meta.dir,
+            "../public/upload",
+            hadImage.profile
+          );
+          const delRemotePath = `/home/your-username/uploads/${hadImage.profile}`;
+
+          // ลบไฟล์ local
+          if (existsSync(delLocalPath)) {
+            await unlink(delLocalPath);
+          }
+
+          // ลบไฟล์บนเซิร์ฟเวอร์
+          const remoteExists = await sftp.exists(delRemotePath);
+          if (remoteExists) {
+            await sftp.delete(delRemotePath);
+          }
+        } catch (delError) {
+          console.warn(
+            "Warning: Could not delete old image:",
+            delError.message
+          );
+          // ไม่ throw error เพราะไฟล์อาจถูกลบไปแล้ว
         }
       }
 
-      // สร้างชื่อไฟล์ใหม่และบันทึก
-      const imgName = `${Date.now()}_${file.name?.replace(/\s+/g, "")}`;
-      await Bun.write(`./public/upload/${imgName}`, file);
+      // บันทึกไฟล์ใน local
+      await Bun.write(localPath, file);
+
+      // ตรวจสอบว่าโฟลเดอร์บนเซิร์ฟเวอร์มีอยู่ไหม
+      const remoteDir = remotePath.substring(0, remotePath.lastIndexOf("/"));
+      try {
+        await sftp.mkdir(remoteDir, true);
+      } catch (mkdirError) {
+        // โฟลเดอร์อาจมีอยู่แล้ว
+        if (mkdirError.code !== 4) {
+          throw mkdirError;
+        }
+      }
+
+      // อัปโหลดไปยังเซิร์ฟเวอร์ผ่าน SFTP
+      await sftp.put(localPath, remotePath, {
+        writeStreamOptions: {
+          flags: "w",
+          mode: 0o666,
+        },
+      });
+
+      // ตรวจสอบว่าอัปโหลดสำเร็จ
+      const uploaded = await sftp.exists(remotePath);
+      if (!uploaded) {
+        throw new Error("File upload verification failed");
+      }
 
       // อัปเดตฐานข้อมูล
       const update = await prisma[model].update({
@@ -284,10 +334,16 @@ export const alumniController = {
     } catch (error) {
       console.error("Profile upload error:", error);
       set.status = 500;
-      return { err: "เกิดข้อผิดพลาดในการอัปโหลด" };
+      return {
+        err: "เกิดข้อผิดพลาดในการอัปโหลด",
+        details: error.message,
+      };
+    } finally {
+      await sftp.end();
     }
   },
   delete_profile: async ({ store, set }) => {
+    const sftp = await sftpConfig();
     try {
       const { id, roleId } = store.user;
       if (!id) {
@@ -319,6 +375,8 @@ export const alumniController = {
       );
       if (existsSync(imgPath)) {
         await unlink(imgPath);
+        const remotePath = `/home/your-username/uploads/${profile.profile}`;
+        await sftp.delete(remotePath);
       }
 
       // อัปเดตฐานข้อมูล set profile = null
@@ -333,6 +391,8 @@ export const alumniController = {
       console.error("Delete profile error:", error);
       set.status = 500;
       return { err: "เกิดข้อผิดพลาดในการลบรูป" };
+    } finally {
+      await sftp.end();
     }
   },
   update_live: async ({ body, store, set }) => {
@@ -849,7 +909,6 @@ export const alumniController = {
         take,
         selectYearStart,
         selectYearEnd,
-        role,
       } = query;
 
       const type = 1;
