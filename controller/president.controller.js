@@ -811,27 +811,26 @@ export const presidentController = {
       }
 
       // Use data from update query (no redundant query)
-      const idField = isAlumni ? "alumniId" : "professorProfessor_id";
       const contract = await prisma.alumni_contract.findFirst({
         where: {
-          [idField]: user_id,
+          alumniId: user_id,
         },
         select: {
           email1: true,
           email2: true,
         },
       });
-      const recipientEmail = contract.email1 || contract.email2;
-      console.log("🚀 ~ recipientEmail:", recipientEmail);
+      const recipientEmail = contract?.email1 || contract?.email2;
 
-      // FIXED: Corrected logic - canUse means account is active/approved
-      const mailOptions = {
-        from: envConfig.mail_user,
-        to: recipientEmail,
-        subject: canUse
-          ? "แจ้งเตือนบัญชีได้รับการอนุมัติโดยผู้ดูแลระบบ"
-          : "แจ้งเตือนบัญชีถูกระงับชั่วคราวโดยผู้ดูแลระบบ",
-        html: `
+      if (recipientEmail) {
+        // FIXED: Corrected logic - canUse means account is active/approved
+        const mailOptions = {
+          from: envConfig.mail_user,
+          to: recipientEmail,
+          subject: canUse
+            ? "แจ้งเตือนบัญชีได้รับการอนุมัติโดยผู้ดูแลระบบ"
+            : "แจ้งเตือนบัญชีถูกระงับชั่วคราวโดยผู้ดูแลระบบ",
+          html: `
 <div style="font-family: 'Sarabun', sans-serif; background-color: #f6f9fc; padding: 30px;">
   <table align="center" width="600" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden;">
     <tr>
@@ -872,9 +871,11 @@ export const presidentController = {
   </table>
 </div>
 `,
-      };
+        };
 
-      await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions);
+      }
+
       set.status = 200;
       return { ok: true };
     } catch (err) {

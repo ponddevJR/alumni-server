@@ -17,6 +17,7 @@ const authRoutes = new Elysia({ prefix: "/auth" })
       )
       .post("/login", authController.login)
   )
+
   // auth otp
   .post("/key-auth", authController.authSuccess)
   // check login

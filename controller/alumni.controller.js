@@ -260,7 +260,7 @@ export const alumniController = {
 
       // Local path (Windows)
       const localPath = `./public/upload/${imgName}`;
-      const remotePath = `/home/your-username/uploads/${imgName}`;
+      const remotePath = process.env.SFTP_PATH + imgName;
 
       // ลบภาพเก่า (ถ้ามี)
       if (hadImage?.profile) {
@@ -270,7 +270,7 @@ export const alumniController = {
             "../public/upload",
             hadImage.profile
           );
-          const delRemotePath = `/home/your-username/uploads/${hadImage.profile}`;
+          const delRemotePath = process.env.SFTP_PATH + hadImage.profile;
 
           // ลบไฟล์ local
           if (existsSync(delLocalPath)) {
@@ -283,10 +283,7 @@ export const alumniController = {
             await sftp.delete(delRemotePath);
           }
         } catch (delerr) {
-          console.warn(
-            "Warning: Could not delete old image:",
-            delerr.message
-          );
+          console.warn("Warning: Could not delete old image:", delerr.message);
           // ไม่ throw err เพราะไฟล์อาจถูกลบไปแล้ว
         }
       }
@@ -373,7 +370,7 @@ export const alumniController = {
       );
       if (existsSync(imgPath)) {
         await unlink(imgPath);
-        const remotePath = `/home/your-username/uploads/${profile.profile}`;
+        const remotePath = process.env.SFTP_PATH + profile.profile;
         await sftp.delete(remotePath);
       }
 
@@ -555,7 +552,7 @@ export const alumniController = {
         },
       });
 
-      set.status = 201; // ใช้ 201 สำหรับ create success
+      set.status = 200; // ใช้ 201 สำหรับ create success
       return { ok: true };
     } catch (err) {
       console.error(err);

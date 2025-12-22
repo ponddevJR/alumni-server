@@ -12,6 +12,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model alumni {
@@ -33,9 +34,9 @@ model alumni {
   work_expreriences work_expreriences[]
   user_privacy      user_privacy?
 
-  createtAt       DateTime          @default(now())
-  updatedAt       DateTime          @default(now())
-  alumni_contract alumni_contract[]
+  createtAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now())
+  alumni_contract alumni_contract?
 }
 
 model alumni_contract {
@@ -125,6 +126,8 @@ model professor {
   academic_rank       String?
   canUse              Boolean @default(true)
   univercity_position String?
+  allowedAccount Boolean @default(false)
+  email               String?
 
   facultyId    Int?
   departmentId Int?

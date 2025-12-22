@@ -13,7 +13,7 @@ const app = new Elysia({ prefix: "/rmu-api" })
   // cors
   .use(
     cors({
-      origin: ["http://localhost:3000"],
+      origin: ["http://localhost:3181",],
       credentials: true,
     })
   )
@@ -27,7 +27,7 @@ const app = new Elysia({ prefix: "/rmu-api" })
   )
   .use(
     staticPlugin({
-      prefix: "/",
+      prefix: "",
       assets: "./public",
     })
   )

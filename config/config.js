@@ -2,7 +2,8 @@ import "dotenv/config";
 import nodemailler from "nodemailer";
 import SftpClient from "ssh2-sftp-client";
 export const envConfig = {
-  port: Number(process.env.PORT) || 8800,
+  port: Number(process.env.PORT) || 8181,
+  client_origin: process.env.CLIENT_ORIGIN,
   jwt_secret: process.env.JWT_SECRET,
   mail_server: process.env.MAIL_SERVER,
   mail_port: process.env.MAIL_PORT,

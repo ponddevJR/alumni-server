@@ -38,7 +38,7 @@ COPY --from=prerelease /app .
 RUN mkdir -p /app/public/upload && chmod -R 777 /app/public/upload
 
 # Expose port (adjust if your Elysia app uses a different port)
-EXPOSE 8800
+EXPOSE 8181
 
 # Run the app
 ENTRYPOINT [ "bun", "run", "src/index.js" ]

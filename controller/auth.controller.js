@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 const randomNum = () => {
   let random = Math.floor(Math.random() * 999999);
-  while (random.length <= 6) {
+  while (random.length < 6 || random.length > 6) {
     random = Math.floor(Math.random() * 999999);
   }
   return random;
@@ -66,6 +66,9 @@ export const authController = {
             univercity_position: true,
             passwordHash: true,
             canUse: true,
+            email: true,
+            fname: true,
+            allowedAccount: true,
           },
         });
 
@@ -86,87 +89,137 @@ export const authController = {
 
       const authNum = randomNum();
 
-      // เข้าสู่ระบบครั้งแรก
-      if (roleId === 1 && !user.allowedAccount) {
-        if (username !== password) {
-          return { err: "รหัสผ่านไม่ถูกต้อง" };
-        }
-
-        // สร้างช่องทางติดต่อ
-        await prisma.alumni_contract.create({
-          data: {
-            alumniId: username,
-            email1: username + "@rmu.ac.th",
-          },
-        });
-
-        const mailOptions = {
-          from: envConfig.mail_user,
-          to: username + "@rmu.ac.th",
-          subject: "เข้าสู่ระบบครั้งแรก",
-          text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบสารสนเทศเครือข่ายศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของ${user.fname} \n"${authNum}"`,
-        };
-
-        await transporter.sendMail(mailOptions);
-        return { isFirstLogin: true, key: authNum, alumni_id: user.alumni_id };
-      }
-
-      const isMatch = await bcryptjs.compare(password, user.passwordHash || "");
-      if (roleId < 2 && !isMatch) {
-        return { err: "รหัสผ่านไม่ถูกต้อง" };
-      }
-
       // ตรวจสอบสถานะบัญชี
       if (!user.canUse) {
+        set.status = 400;
         return {
           err: "บัญชีของคุณถูกระงับอยู่ในขณะนี้ โปรดติดต่อผู้เกี่ยวข้อง",
         };
       }
 
-      //   ยังไม่เปลี่ยนรหัสผ่าน
-      if (roleId === 1 && username === password) {
-        const toEmail = await prisma.alumni_contract.findUnique({
-          where: {
-            alumniId: username,
-          },
-          select: {
-            email1: true,
-            email2: true,
+      const hadprivacy = await prisma.user_privacy.findUnique({
+        where: {
+          ...(roleId == 1
+            ? {
+                alumniId: user.alumni_id,
+              }
+            : { professorId: user.professor_id }),
+        },
+        select: {
+          ...(roleId === 2
+            ? {
+                professorId: true,
+              }
+            : { alumniId: true }),
+        },
+      });
+      if (!hadprivacy) {
+        await prisma.user_privacy.create({
+          data: {
+            ...(roleId === 2
+              ? {
+                  professorId: user.professor_id,
+                }
+              : { alumniId: user.alumni_id }),
+            allowedProfessorSendEmail: false,
+            allowedAlumniSendEmail: true,
+            seeProfile: true,
+            seeEmail: true,
+            seeFacebook: true,
+            seePhone: true,
           },
         });
+      }
+
+      // เข้าสู่ระบบครั้งแรก
+      if (!user.allowedAccount) {
+        if (username !== password) {
+          return { err: "รหัสผ่านไม่ถูกต้อง" };
+        }
+
+        if (roleId === 1) {
+          // สร้างช่องทางติดต่อศิษย์เก่า
+          await prisma.alumni_contract.create({
+            data: {
+              alumniId: username,
+              email1: username + "@rmu.ac.th",
+            },
+          });
+        }
+
+        if (roleId > 1 && !user?.email) {
+          return {
+            err: "ไม่พบอีเมลของท่าน โปรดติดต่อเจ้าหน้าที่ผู้เกี่ยวข้อง",
+          };
+        }
+
         const mailOptions = {
           from: envConfig.mail_user,
-          to: toEmail.email1 || toEmail.email2,
+          to: roleId === 1 ? username + "@rmu.ac.th" : user.email,
+          subject: "เข้าสู่ระบบครั้งแรก",
+          text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบสารสนเทศเครือข่ายศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของคุณ${
+            user.fname || ""
+          } \n"${authNum}"`,
+        };
+
+        await transporter.sendMail(mailOptions);
+        return {
+          isFirstLogin: true,
+          key: authNum,
+          user: user.alumni_id || user?.professor_id,
+        };
+      }
+
+      const isMatch = await bcryptjs.compare(password, user.passwordHash || "");
+      if (!isMatch) {
+        return { err: "รหัสผ่านไม่ถูกต้อง" };
+      }
+
+      //   ยังไม่เปลี่ยนรหัสผ่าน
+      if (username === password) {
+        let toEmail = null;
+        if (roleId === 1) {
+          const alumni = await prisma.alumni_contract.findUnique({
+            where: {
+              alumniId: username,
+            },
+            select: {
+              email1: true,
+              email2: true,
+            },
+          });
+          toEmail = alumni.email1 || alumni.email2;
+        } else {
+          const professor = await prisma.professor.findUnique({
+            where: {
+              professor_id: username,
+            },
+            select: {
+              email: true,
+            },
+          });
+          toEmail = professor.email;
+        }
+        if (!toEmail) {
+          return {
+            err: "คุณยังไม่เปลี่ยนรหัสผ่านและไม่พบอีเมลเพื่อส่งรหัสยืนยันตัวตน โปรดติดต่อเจ้าที่ผู้เกี่ยวข้อง",
+          };
+        }
+
+        const mailOptions = {
+          from: envConfig.mail_user,
+          to: toEmail,
           subject: "รหัสยืนยันตัวตนเข้าใช้งานระบบ",
           text: `รหัสยืนยันตัวตนเข้าใช้งาน\nระบบสารสนเทศเครือข่ายศิษย์เก่า มหาวิทยาลัยราชภัฏมหาสารคามของ${user.fname} \n"${authNum}"`,
         };
 
         await transporter.sendMail(mailOptions);
-        return { isFirstLogin: true, key: authNum, alumni_id: user.alumni_id };
+        return {
+          isFirstLogin: true,
+          key: authNum,
+          user: user.alumni_id || user?.professor_id,
+        };
       } else {
-        if (roleId > 1) {
-          const hadprivacy = await prisma.user_privacy.findUnique({
-            where: {
-              professorId: username,
-            },
-            select: {
-              professorId: true,
-            },
-          });
-          if (!hadprivacy) {
-            await prisma.user_privacy.create({
-              data: {
-                professorId: username,
-                allowedProfessorSendEmail: false,
-                allowedAlumniSendEmail: true,
-                seeProfile: true,
-                seeEmail: true,
-                seeFacebook: true,
-                seePhone: true,
-              },
-            });
-          }
-        }
         const payload = {
           id: roleId < 2 ? user.alumni_id : user?.professor_id,
           signInDate: Date.now(),
@@ -182,8 +235,8 @@ export const authController = {
           ok: true,
         };
       }
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       set.status = 500;
       return { err };
     }
@@ -191,61 +244,99 @@ export const authController = {
 
   authSuccess: async ({ body, set, jwt }) => {
     try {
-      const { alumni_id } = body;
-      if (!alumni_id) {
-        return (set.status = 400);
+      const { alumni_id: userId } = body;
+      if (!userId) {
+        set.status = 400;
+        return { err: "user not found" };
       }
 
-      const alumni = await prisma.alumni.findUnique({
+      let user = {};
+      let roleId = 1;
+      user = await prisma.alumni.findUnique({
         where: {
-          alumni_id,
+          alumni_id: userId,
         },
         select: {
           allowedAccount: true,
           alumni_id: true,
         },
       });
-      if (!alumni) {
-        return (set.status = 400);
-      }
-      if (!alumni.allowedAccount) {
-        const facultyId = Number(alumni_id.substring(3, 5));
-        const depId = Number(alumni_id.substring(4, 8));
-        const salt = await bcryptjs.genSalt(12);
-        const hash = await bcryptjs.hash(alumni_id, salt);
-        await prisma.alumni.update({
+      if (!user) {
+        user = await prisma.professor.findUnique({
           where: {
-            alumni_id,
+            professor_id: userId,
           },
-          data: {
+          select: {
             allowedAccount: true,
-            passwordHash: hash,
-            facultyId,
-            departmentId: depId,
-            year_start: Number(
-              `${new Date().getFullYear() + 543}`.substring(0, 2) +
-                `${alumni.alumni_id}`.substring(0, 2)
-            ),
+            professor_id: true,
+            univercity_position: true,
           },
         });
+        roleId = 2;
+
+        const aj_role = user.univercity_position;
+        if (aj_role.includes("รองคณบดี") || aj_role.includes("คณบดี")) {
+          roleId = 3;
+        }
+        if (aj_role.includes("รองอธิการบดี") || aj_role.includes("อธิการบดี")) {
+          roleId = 4;
+        }
+      }
+
+      if (!user.allowedAccount) {
+        if (user.alumni_id) {
+          const facultyId = Number(userId.substring(3, 5));
+          const depId = Number(userId.substring(4, 8));
+          const salt = await bcryptjs.genSalt(12);
+          const hash = await bcryptjs.hash(userId, salt);
+          await prisma.alumni.update({
+            where: {
+              alumni_id: userId,
+            },
+            data: {
+              allowedAccount: true,
+              passwordHash: hash,
+              facultyId,
+              departmentId: depId,
+              year_start: Number(
+                `${new Date().getFullYear() + 543}`.substring(0, 2) +
+                  `${user.alumni_id}`.substring(0, 2)
+              ),
+            },
+          });
+        } else {
+          await prisma.professor.update({
+            where: {
+              professor_id: userId,
+            },
+            data: {
+              allowedAccount: true,
+            },
+          });
+        }
+
         const hadPrivacy = await prisma.user_privacy.findFirst({
           where: {
-            alumniId: alumni.alumni_id,
+            ...(user?.alumni_id
+              ? { alumniId: userId }
+              : { professorId: userId }),
           },
         });
         if (!hadPrivacy) {
           await prisma.user_privacy.create({
             data: {
-              alumniId: alumni.alumni_id,
+              ...(user?.alumni_id
+                ? { alumniId: userId }
+                : { professorId: userId }),
             },
           });
         }
       }
 
       const payload = {
-        id: alumni.alumni_id,
+        id: user.alumni_id || user?.professor_id,
         signInDate: Date.now(),
-        roleId: 1,
+        roleId,
       };
       const token = await jwt.sign(payload);
       set.headers[
@@ -327,10 +418,14 @@ export const authController = {
           alumni_id: username,
         },
         select: {
-          email1: true,
-          email2: true,
           fname: true,
           allowedAccount: true,
+          alumni_contract: {
+            select: {
+              email1: true,
+              email2: true,
+            },
+          },
         },
       });
       let isAlumni = true;
@@ -340,8 +435,7 @@ export const authController = {
             professor_id: username,
           },
           select: {
-            email1: true,
-            email2: true,
+            email: true,
             fname: true,
           },
         });
@@ -358,13 +452,18 @@ export const authController = {
         };
       }
 
-      if (!user.email1 && !user.email2) {
+      if (
+        isAlumni &&
+        !user.alumni_contract.email1 &&
+        !user.alumni_contract.email2
+      ) {
         return { err: "ไม่พบอีเมล โปรดติดต่อเจ้าหน้าที่ผู้ประสานงาน" };
       }
 
       const authNum = randomNum();
-
-      const toEmail = user.email1 || user.email2;
+      const toEmail = isAlumni
+        ? user.alumni_contract.email1 || user.alumni_contract.email2
+        : user?.email;
       const mailOptions = {
         from: envConfig.mail_user,
         to: toEmail,
