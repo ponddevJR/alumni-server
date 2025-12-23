@@ -1292,24 +1292,41 @@ export const alumniController = {
         return { err: "ผู้ใช้คนนี้ปฏิเสธการรับข้อความจากคุณ" };
       }
 
-      const senderContact = sendMyContact
-        ? `โปรดติดต่อกลับทางช่องทางเหล่านี้\nEmail:${
-            emailTo.email1 || emailTo.email2
-          }\n${emailTo?.phone1 ? `Call : ${emailTo?.phone1}` : ""}${
-            emailTo?.phone2 ? `\nCall : ${emailTo?.phone2}` : ""
-          }${emailTo?.facebook ? `\nFacebook : ${emailTo?.facebook}` : ""}`
-        : null;
+      let senderContactText = "";
+      if (sendMyContact) {
+        const senderContact = await prisma.alumni_contract.findFirst({
+          where: {
+            alumniId: store?.user?.id,
+          },
+          select: {
+            email1: true,
+            email2: true,
+            phone1: true,
+            phone2: true,
+            facebook: true,
+          },
+        });
+        senderContactText = `โปรดติดต่อกลับทางช่องทางเหล่านี้\nEmail:${
+          senderContact.email1 || senderContact.email2
+        }\n${senderContact?.phone1 ? `Call : ${senderContact?.phone1}` : ""}${
+          senderContact?.phone2 ? `\nCall : ${senderContact?.phone2}` : ""
+        }${
+          senderContact?.facebook
+            ? `\nFacebook : ${senderContact?.facebook}`
+            : ""
+        }`;
+      }
 
       const mailOptions = {
         from: emailTo?.email1 || emailTo?.email2,
         to: emailTo?.email1 || emailTo.email2,
         subject:
           "มีผู้ส่งข้อความหาคุณผ่านระบบสารสนเทศเครือข่ายศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม",
-        text: `ข้อความจาก${type < 2 ? sender.prefix : sender?.academic_rank}${
-          sender.fname
-        } ${sender.lname} ถึงคุณ${sender.fname} ${
+        text: `ข้อความจาก${
+          type < 2 ? sender?.prefix || "" : sender?.academic_rank
+        }${sender.fname} ${sender.lname} ถึงคุณ${sender.fname} ${
           sender.lname
-        }\n"${text}"\n\n${senderContact}`,
+        }\n"${text}"\n\n${senderContactText}`,
       };
 
       await transporter.sendMail(mailOptions);
