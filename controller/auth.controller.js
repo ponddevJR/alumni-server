@@ -1,8 +1,7 @@
 import { envConfig, transporter } from "../config/config";
-import { PrismaClient } from "../src/generated/prisma";
 import bcryptjs from "bcryptjs";
+import prisma from "../libs/prisma";
 
-const prisma = new PrismaClient();
 
 const randomNum = () => {
   let random = Math.floor(Math.random() * 999999);

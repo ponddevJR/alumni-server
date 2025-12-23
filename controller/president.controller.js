@@ -1,9 +1,9 @@
-import { PrismaClient } from "../src/generated/prisma";
+
 import path from "path";
 import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { envConfig, transporter } from "../config/config";
-const prisma = new PrismaClient();
+import prisma from "../libs/prisma";
 
 export const presidentController = {
   alumni_list: async ({ set, query }) => {

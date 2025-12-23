@@ -1,6 +1,6 @@
-import { PrismaClient } from "../src/generated/prisma";
+import prisma from "../libs/prisma.js";
 
-const prisma = new PrismaClient();
+
 
 export const dashboardController = {
   getAll_AVG: async ({ store, set, query }) => {

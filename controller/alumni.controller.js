@@ -1,12 +1,10 @@
-import { PrismaClient } from "../src/generated/prisma";
 import bcryptjs from "bcryptjs";
 import path from "path";
 import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { sftpConfig, transporter } from "../config/config";
 import { type } from "os";
-
-const prisma = new PrismaClient();
+import prisma from "../libs/prisma";
 
 export const alumniController = {
   profile: async ({ store, set }) => {
