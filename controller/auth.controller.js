@@ -238,7 +238,7 @@ export const authController = {
     } catch (error) {
       console.error(error);
       set.status = 500;
-      return { err };
+      return { error };
     }
   },
 
