@@ -1292,18 +1292,35 @@ export const alumniController = {
 
       let senderContactText = "";
       if (sendMyContact) {
-        const senderContact = await prisma.alumni_contract.findFirst({
-          where: {
-            alumniId: store?.user?.id,
-          },
-          select: {
-            email1: true,
-            email2: true,
-            phone1: true,
-            phone2: true,
-            facebook: true,
-          },
-        });
+        let senderContact = null;
+        if (senderRole < 2) {
+          senderContact = await prisma.alumni_contract.findFirst({
+            where: {
+              alumniId: store?.user?.id,
+            },
+            select: {
+              email1: true,
+              email2: true,
+              phone1: true,
+              phone2: true,
+              facebook: true,
+            },
+          });
+        } else {
+          senderContact = await prisma.alumni_contract.findFirst({
+            where: {
+              professorProfessor_id: store?.user?.id,
+            },
+            select: {
+              email1: true,
+              email2: true,
+              phone1: true,
+              phone2: true,
+              facebook: true,
+            },
+          });
+        }
+
         senderContactText = `โปรดติดต่อกลับทางช่องทางเหล่านี้\nEmail:${
           senderContact.email1 || senderContact.email2
         }\n${senderContact?.phone1 ? `Call : ${senderContact?.phone1}` : ""}${
