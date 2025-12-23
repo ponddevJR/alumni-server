@@ -3,7 +3,6 @@ import path from "path";
 import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { sftpConfig, transporter } from "../config/config";
-import { type } from "os";
 import prisma from "../libs/prisma";
 
 export const alumniController = {
@@ -126,6 +125,7 @@ export const alumniController = {
             alumniId: id,
           },
           select: {
+            id: true,
             phone1: true,
             phone2: true,
             email1: true,
@@ -176,13 +176,16 @@ export const alumniController = {
 
       const hadContract = await prisma.alumni_contract.findFirst({
         where: { [idField]: id },
+        select: {
+          id: true,
+        },
       });
       let update;
       let create;
       if (!hadContract) {
         create = await prisma.alumni_contract.create({
           data: {
-            [idField]: id,
+            id: hadContract.id,
             phone1,
             phone2,
             email1,
@@ -192,7 +195,7 @@ export const alumniController = {
         });
       } else {
         update = await prisma.alumni_contract.update({
-          where: { [idField]: id },
+          where: { id: hadContract.id },
           data: { phone1, phone2, email1, email2, facebook },
         });
       }
@@ -1285,7 +1288,7 @@ export const alumniController = {
 
       if (
         (senderRole < 2 && !toUserPrivacy?.allowedAlumniSendEmail) ||
-        (senderRole >= 2 && !toUserPrivacy.allowedProfessorSendEmail)
+        (senderRole >= 2 && !toUserPrivacy?.allowedProfessorSendEmail)
       ) {
         return { err: "ผู้ใช้คนนี้ปฏิเสธการรับข้อความจากคุณ" };
       }
@@ -1322,7 +1325,7 @@ export const alumniController = {
         }
 
         senderContactText = `โปรดติดต่อกลับทางช่องทางเหล่านี้\nEmail:${
-          senderContact.email1 || senderContact.email2
+          senderContact?.email1 || senderContact?.email2
         }\n${senderContact?.phone1 ? `Call : ${senderContact?.phone1}` : ""}${
           senderContact?.phone2 ? `\nCall : ${senderContact?.phone2}` : ""
         }${
@@ -1338,8 +1341,8 @@ export const alumniController = {
         subject:
           "มีผู้ส่งข้อความหาคุณผ่านระบบสารสนเทศเครือข่ายศิษย์เก่ามหาวิทยาลัยราชภัฏมหาสารคาม",
         text: `ข้อความจาก${
-          type < 2 ? sender?.prefix || "" : sender?.academic_rank
-        }${sender.fname} ${sender.lname} ถึงคุณ${sender.fname} ${
+          senderRole < 2 ? sender?.prefix || "" : sender?.academic_rank
+        }${sender?.fname} ${sender.lname} ถึงคุณ${sender.fname} ${
           sender.lname
         }\n"${text}"\n\n${senderContactText}`,
       };
