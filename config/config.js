@@ -4,7 +4,7 @@ import SftpClient from "ssh2-sftp-client";
 export const envConfig = {
   port: Number(process.env.PORT) || 8181,
   client_origin: process.env.CLIENT_ORIGIN,
-  jwt_secret: process.env.JWT_SECRET,
+  jwt_secret: process.env.JWT_SECRET || "my super secret",
   mail_server: process.env.MAIL_SERVER,
   mail_port: process.env.MAIL_PORT,
   mail_user: process.env.MAIL_USER,

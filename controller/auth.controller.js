@@ -170,11 +170,6 @@ export const authController = {
         };
       }
 
-      const isMatch = await bcryptjs.compare(password, user.passwordHash || "");
-      if (!isMatch) {
-        return { err: "รหัสผ่านไม่ถูกต้อง" };
-      }
-
       //   ยังไม่เปลี่ยนรหัสผ่าน
       if (username === password) {
         let toEmail = null;
@@ -188,7 +183,7 @@ export const authController = {
               email2: true,
             },
           });
-          toEmail = alumni.email1 || alumni.email2;
+          toEmail = alumni?.email1 || alumni?.email2;
         } else {
           const professor = await prisma.professor.findUnique({
             where: {
@@ -217,11 +212,18 @@ export const authController = {
         return {
           isFirstLogin: true,
           key: authNum,
-          user: user.alumni_id || user?.professor_id,
+          user: user?.alumni_id || user?.professor_id,
         };
       } else {
+        const isMatch = await bcryptjs.compare(
+          password,
+          user.passwordHash || ""
+        );
+        if (!isMatch) {
+          return { err: "รหัสผ่านไม่ถูกต้อง" };
+        }
         const payload = {
-          id: roleId < 2 ? user.alumni_id : user?.professor_id,
+          id: roleId < 2 ? user?.alumni_id : user?.professor_id,
           signInDate: Date.now(),
           roleId,
         };

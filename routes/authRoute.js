@@ -10,9 +10,19 @@ const authRoutes = new Elysia({ prefix: "/auth" })
     app
       .use(
         rateLimit({
-          duration: 10 * 60 * 1000, // 10 นาที
+          duration: 10 * 60 * 1000,
           max: 5,
-          message: "พยายามเข้าสู่ระบบบ่อยเกินไป กรุณาลองใหม่ภายหลัง", // ✅ string
+          generator: (req) => {
+            // จำกัดทั้ง IP และ username
+            const ip = req.headers.get("x-forwarded-for") || req.ip;
+            // หมายเหตุ: ต้องดึง username จาก request body
+            return ip;
+          },
+          message: "พยายามเข้าสู่ระบบบ่อยเกินไป กรุณาลองใหม่ในอีก 10 นาที",
+          onLimit: (req) => {
+            // ✅ เพิ่ม logging
+            console.warn(`Rate limit exceeded: ${req.ip}`);
+          },
         })
       )
       .post("/login", authController.login)
