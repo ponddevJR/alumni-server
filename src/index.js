@@ -13,7 +13,7 @@ const app = new Elysia({ prefix: "/rmu-api" })
   // cors
   .use(
     cors({
-      origin: ["http://localhost:3181",],
+      origin: ["http://localhost:3181","https://alumni.rmu.ac.th"],
       credentials: true,
     })
   )
